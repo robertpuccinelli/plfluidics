@@ -7,49 +7,64 @@ Output includes device state.
 
 
 
-"""
-Program state machine
-
-Idle > user input > config > idle    <
-                             ||     ||
-                program < user input ^
-
-
-
-    states:
-    1. Idle
-    2. Running
-    3. Process
-    4. Execute
-"""
-
-from enum import Enum
+from enum import Enum, auto
+from time import time, localtime, strftime
 import logging
 
-logger = logging.getLogger()
+from plfluidics import ValveControllerRGS
+from pyconfighandler import validateConfig
 
+logger = logging.getLogger()
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s [%(name)s]', datefmt='%H:%M:%S')
 
 class Engine():
         
     class States (Enum):
-        IDLE    = 0
-        RUN     = 1
-        HOLD    = 2
-        PROC    = 3
-        EXE     = 4
+        """Fluidic engine state machine states."""
+        IDLE    = auto()    # Idle state for inactive system
+        RUN     = auto()    # Run state for active system
+        HOLD    = auto()    # Holding state for pausing program command stream
+        PROC    = auto()    # Processing state for digesting commands
+        EXE     = auto()    # Execution state for processed commands
+
+    
+    class Commands (Enum):
+        """Tasks that run on an independent scheduler."""
+        PUMP    = auto()
+        VALVE   = auto()
+
+
+    class ConfigFields(Enum):
+        """Required fields for initializing engine from config file."""
+        NAME        = auto()    # Name of run type
+        CTLR_TYPE   = auto()    # Controller type, ie RGS
+        PROGRAM_DEF = auto()    # Default program to load
+        PROGRAM_LOG = auto()    # Default program log location
+
 
     def __init__(self, config = None, program = None):
         self.buffer = []
         self.config = config
         self.program = program
 
+        self.flag_config = False
+        self.flag_program = False
+        self.flag_task = False
+        self.flag_input = False
+        self.flag_hold = False
+        self.flag_exe = False
+
         if self.config:
             self.buffer.append(["load", "config",self.config])
             if self.program:
                 self.buffer.append(["load","program", self.program])
 
-        self.flag_pump = False
-        self.flag_running = False
+
+        self.time_run_now   = time()
+        self.time_run_next  = self.time_run_now
+        self.time_pump_now  = self.time_run_now
+        self.time_pump_next = self.time_run_now
+
         self.state_curr = self.States.IDLE
         self.action = []
 
@@ -60,7 +75,6 @@ class Engine():
             self.States.IDLE:   self.funcIdle,
             self.States.RUN:    self.funcRun,
             self.States.HOLD:   self.funcHold,
-            self.States.PROC:   self.funcProc,
             self.States.EXE:    self.funcExe,
         }
 
@@ -76,7 +90,7 @@ class Engine():
         if self.buffer:
             self.state_curr = self.State.PROC
 
-    def funcProc(self):
+    def processInput(self):
         logger.debug("Entered Proc state")
         line = self.buffer.pop(0)
         logger.debug("Line to be processed: {}".format(line))
@@ -137,14 +151,77 @@ class Engine():
                 self.action = arg1
                 logger.debug("Stop input processed")
 
-            self.state_curr = self.States.EXE
-                
         except Exception as e:
             logger.warning("Unexpected input received in buffer: {}. Error message: {}".format(line, e))
-            if self.flag_running:
-                self.state_curr = self.States.RUN
+
+    def processConfig(self, config_file):
+        """Translates config file to system settings.
+        
+        Config file has a few objectives:
+        1. Define aliases for valves, groups and tasks. These aliases are used for facilitating human readable programs.
+        2. Define valve sets for groups and tasks such as pumps.
+        3. Describe hardware such as valve controller and addresses
+        4. Define interface parameters such as logfile location
+        """
+        try:
+            config, opts = validateConfig(self.config_path, self.ConfigFields)
+            name    = config['DEFAULT']['NAME']
+            vc_type = config['DEFAULT']['CTLR_TYPE']
+            program = config['DEFAULT']['PROGRAM_DEF']
+            logfile = config['DEFAULT']['PROGRAM_LOG'] + name + strftime("_%Y%m%d_%H%M",localtime()) + '.log'
+            loglevel = config['DEFAULT']['LOG_LEVEL']
+
+            # Add handler to existing logger to store the current session
+            handler_file = logging.FileHandler(logfile, mode='a')
+            if loglevel.upper() == 'DEBUG':
+                handler_file.setLevel(logging.DEBUG)
             else:
-                self.state_curr = self.States.IDLE
+                handler_file.setLevel(logging.INFO)
+            handler_file.setFormatter(formatter)
+            logger.addHandler(handler_file)
+
+            # Process config by valve controller type
+            if vc_type is 'RGS':
+                default_state = config['RGS']['VALVE_STATE'].upper()
+                default_polarity = config['RGS']['VALVE_POL'].upper()
+                num_valves = config['DEFAULT'].getint('VALVE_NUM')
+                valves = []
+
+                if default_polarity == 'INV':
+                    pol = True
+                else:
+                    pol = False
+
+                if default_state == 'OPEN':
+                    state = True
+                else:
+                    state = False
+
+                for i in range(0, num_valves):
+                    alias = config['RGS']['VALVE'+ str(i)]
+                    valves.append([i, pol, state, alias])
+
+                self.vc = ValveControllerRGS(valves)
+            else:
+                raise RuntimeError("Valve controller type is not recognized: {}".format(vc_type))
+
+            # Process valve groups
+            vg_items = [item for item in list(config['VALVE_GROUPS'].items()) if item not in list(config['DEFAULT'].items())]
+
+            self.valve_groups = {}
+            if vg_items:
+                for key, value in vg_items:
+                    self.valve_groups[key.upper()] = value.upper().split(',')
+
+
+        except ValueError:
+            logger.warning("Configuration file not found: {}".format(self.config_path))
+
+        except KeyError as e:
+            logger.warning("Key not found in configuration file: {}".format(e))
+
+        except RuntimeError as e:
+            logger.warning("Runtime error encountered. {}".format(e))
 
     def funcExe(self):
         match self.action[0]:
@@ -159,6 +236,7 @@ class Engine():
                 pass
 
             case "RESUME":
+
                 pass
 
             case "STOP":
@@ -168,6 +246,7 @@ class Engine():
                 act = self.action[1]
                 if act == "CONFIG":
                     pass
+                    
                 elif act == "PROG":
                     pass
 
