@@ -33,13 +33,18 @@ class Engine():
         PUMP    = auto()
         VALVE   = auto()
 
+    class ValveActions(Enum):
+        """Allowable actions for valves."""
+        OPEN    = auto()
+        CLOSE   = auto()
+
 
     class ConfigFields(Enum):
         """Required fields for initializing engine from config file."""
         NAME        = auto()    # Name of run type
         CTLR_TYPE   = auto()    # Controller type, ie RGS
-        PROGRAM_DEF = auto()    # Default program to load
         PROGRAM_LOG = auto()    # Default program log location
+        LOG_LEVEL   = auto()    # Log level to capture in run
 
 
     def __init__(self, config = None, program = None):
@@ -158,23 +163,24 @@ class Engine():
         """Translates config file to system settings.
         
         Config file has a few objectives:
-        1. Define aliases for valves, groups and tasks. These aliases are used for facilitating human readable programs.
+        1. Define aliases for valves and groups. These aliases are used for facilitating human readable programs.
         2. Define valve sets for groups and tasks such as pumps.
         3. Describe hardware such as valve controller and addresses
         4. Define interface parameters such as logfile location
         """
         try:
             config, opts = validateConfig(self.config_path, self.ConfigFields)
-            name    = config['DEFAULT']['NAME']
-            vc_type = config['DEFAULT']['CTLR_TYPE']
-            program = config['DEFAULT']['PROGRAM_DEF']
-            logfile = config['DEFAULT']['PROGRAM_LOG'] + name + strftime("_%Y%m%d_%H%M",localtime()) + '.log'
-            loglevel = config['DEFAULT']['LOG_LEVEL']
+            name        = config['DEFAULT']['NAME']
+            vc_type     = config['DEFAULT']['CTLR_TYPE']
+            logfile     = config['DEFAULT']['PROGRAM_LOG'] + name + strftime("_%Y%m%d_%H%M",localtime()) + '.log'
+            loglevel    = config['DEFAULT']['LOG_LEVEL']
 
-            # Add handler to existing logger to store the current session
+            # Add handler to existing logger to store the current session in a designated file/level
             handler_file = logging.FileHandler(logfile, mode='a')
             if loglevel.upper() == 'DEBUG':
                 handler_file.setLevel(logging.DEBUG)
+            elif loglevel.upper() == 'WARNING':
+                handler_file.setLevel(logging.WARNING)
             else:
                 handler_file.setLevel(logging.INFO)
             handler_file.setFormatter(formatter)
@@ -182,11 +188,13 @@ class Engine():
 
             # Process config by valve controller type
             if vc_type is 'RGS':
+                # Extract parameters
                 default_state = config['RGS']['VALVE_STATE'].upper()
                 default_polarity = config['RGS']['VALVE_POL'].upper()
                 num_valves = config['DEFAULT'].getint('VALVE_NUM')
                 valves = []
 
+                # Translate default values
                 if default_polarity == 'INV':
                     pol = True
                 else:
@@ -197,31 +205,86 @@ class Engine():
                 else:
                     state = False
 
+                # Structure valve settings w/ aliases
+                alias = []
                 for i in range(0, num_valves):
-                    alias = config['RGS']['VALVE'+ str(i)]
-                    valves.append([i, pol, state, alias])
+                    alias.append(config['RGS']['VALVE'+ str(i)])
+                    valves.append([i, pol, state, alias[i]])
 
-                self.vc = ValveControllerRGS(valves)
+                # Initialize valve controller + valves
+                vc = ValveControllerRGS(valves)
             else:
-                raise RuntimeError("Valve controller type is not recognized: {}".format(vc_type))
+                raise ValueError("Valve controller type is not recognized: {}".format(vc_type))
 
-            # Process valve groups
+            # Extract valve groups
             vg_items = [item for item in list(config['VALVE_GROUPS'].items()) if item not in list(config['DEFAULT'].items())]
 
-            self.valve_groups = {}
+            # Validate and store valve groups in dictionary
+            valve_groups = {}
             if vg_items:
-                for key, value in vg_items:
-                    self.valve_groups[key.upper()] = value.upper().split(',')
+                for key, value in vg_items():
+                    item_list = value.upper().split(',')
+                    if not set(item_list).issubset(alias):
+                        raise ValueError('Valve alias in group not recognized. {}:{}'.format(key,item_list))
+                    valve_groups[key.upper()] = item_list
 
+            self.vc = vc
+            self.alias = alias
+            self.valve_groups = valve_groups
 
-        except ValueError:
-            logger.warning("Configuration file not found: {}".format(self.config_path))
+        except ValueError as e:
+            logger.warning("Value error encountered. {}".format(e))
 
         except KeyError as e:
-            logger.warning("Key not found in configuration file: {}".format(e))
+            logger.warning("Key error encountered: {}".format(e))
 
-        except RuntimeError as e:
-            logger.warning("Runtime error encountered. {}".format(e))
+    def processProgram(self, program_file):
+        """Process program script to catch errors before execution and estimate duration."""
+        try:
+            with open(program_file, 'r') as f:
+                line_num = 1
+                prog_timer = 0
+                buffer = []
+                for line in f:
+                    line_args = line.upper().strip().split(' ')
+                    assert line_args[0] in self.Commands.__members__, 'Command key not recognized: {}'.format(line_args[0])
+                    
+                    match line_args[0]:
+
+                        case 'VALVE':
+                            # Format: [VALVE,VALVE1,OPEN,5S] - Open Valve1 and wait 5s
+                            if line_args[1] in self.alias or self.valve_groups:
+                                assert line_args[2] in self.ValveActions.__members__, "Valve action not recognized - {}".format(line_args[2])
+                                if len(line_args) > 3:
+                                    try:
+                                        duration = int(line_args[3])
+                                    except ValueError:
+                                        raise ValueError('Duration argument is not numeric: {}'.format(line_args[3]))
+                                else:
+                                    duration = 0
+
+                                # Add line to buffer
+                                if line_args in self.alias:
+                                    buffer.append(line_args[0:3] + [duration])
+
+                                # Split group into individual commands and append timer to last entry
+                                else:
+                                    for group, valves in self.valve_groups:
+                                        if line_args[1] == group:
+                                            for valve in valves[:-1]:
+                                                buffer.append(line_args[0] + [valve] + line_args[2] + [0])
+                                            buffer.append(line_args[0] + valves[-1] + line_args[2] + [duration])
+                                                                 
+                        case 'PUMP':
+                            # Format: [PUMP,PUMP1,5,5S] - Pump Pump1 for 5 seconds at 5Hz
+                            pass
+                    
+                    prog_timer += duration
+                    line_num += 1
+
+
+        except Exception as e:
+            logger.warning("Program error on line {}. {}".format(line_num, e))
 
     def funcExe(self):
         match self.action[0]:
