@@ -38,6 +38,9 @@ class Engine():
         OPEN    = auto()
         CLOSE   = auto()
 
+    class PumpActions(Enum):
+        ON  = auto()
+        OFF = auto()
 
     class ConfigFields(Enum):
         """Required fields for initializing engine from config file."""
@@ -241,16 +244,16 @@ class Engine():
     def processProgram(self, program_file):
         """Process program script to catch errors before execution and estimate duration."""
         try:
+            logger.debug("Processing program file located at: {}".format(program_file))
             with open(program_file, 'r') as f:
                 line_num = 1
                 prog_timer = 0
-                buffer = []
+                command = []
                 for line in f:
                     line_args = line.upper().strip().split(' ')
                     assert line_args[0] in self.Commands.__members__, 'Command key not recognized: {}'.format(line_args[0])
                     
                     match line_args[0]:
-
                         case 'VALVE':
                             # Format: [VALVE,VALVE1,OPEN,5S] - Open Valve1 and wait 5s
                             if line_args[1] in self.alias or self.valve_groups:
@@ -263,25 +266,46 @@ class Engine():
                                 else:
                                     duration = 0
 
-                                # Add line to buffer
+                                # Add line to output command
                                 if line_args in self.alias:
-                                    buffer.append(line_args[0:3] + [duration])
+                                    command.append(line_args[0:3] + [duration])
 
                                 # Split group into individual commands and append timer to last entry
                                 else:
                                     for group, valves in self.valve_groups:
                                         if line_args[1] == group:
                                             for valve in valves[:-1]:
-                                                buffer.append(line_args[0] + [valve] + line_args[2] + [0])
-                                            buffer.append(line_args[0] + valves[-1] + line_args[2] + [duration])
+                                                command.append(line_args[0] + [valve] + line_args[2] + [0])
+                                            command.append(line_args[0] + valves[-1] + line_args[2] + [duration])
                                                                  
                         case 'PUMP':
-                            # Format: [PUMP,PUMP1,5,5S] - Pump Pump1 for 5 seconds at 5Hz
-                            pass
+                            # Format: [PUMP,PUMP1, ON, 5, 10] - Pump Pump1 at 5Hz for 10 cycles
+                            assert line_args[1] in self.valve_groups, "Pump is not a recognized valve group: {}".format(line_args[2]))
+                            assert line_args[2] in self.PumpActions.__members__, "Pump action not recognized: {}".format(line_args[3])
+
+                            if line_args[2] is 'ON':
+                                try:
+                                    period = 1/float(line_args[3])
+                                except ValueError as e:
+                                    raise ValueError('Frequency argument is not numeric: {}'.format(line_args[4]))
+                                
+                                if len(line_args) > 4:
+                                    try:
+                                        cycles = int(line_args[4])
+                                        duration = cycles * period
+                                    except ValueError as e:
+                                        raise ValueError('Cycle argument is not numeric: {}'.format(line_args[5]))
+                                else: 
+                                    cycles = -1
+                                    duration = 0
+                                    command.append(line_args[0:])
+                            elif line_args[3] is 'OFF':
+                                duration = 0
+                                command.append(line_args[0:3], duration)
                     
+                    return command,duration
                     prog_timer += duration
                     line_num += 1
-
 
         except Exception as e:
             logger.warning("Program error on line {}. {}".format(line_num, e))
