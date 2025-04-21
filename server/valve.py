@@ -19,8 +19,8 @@ class Valve():
     setAddress(str)     - sets valve address
     getPolarity()       - returns valve polarity
     getState()          - returns valve state
-    setStateOpen()      - sets valve state open
-    setStateClosed()    - sets valve state closed
+    open()      - sets valve state open
+    close()    - sets valve state closed
     """
 
     def __init__(self, address, default_state=False, polarity_inverted=False):
@@ -36,9 +36,9 @@ class Valve():
         self.polarity = polarity_inverted
         logger.info('Initializing valve : {}'.format(address))
         if default_state:
-            self.setStateOpen()
+            self.open()
         else:
-            self.setStateClosed()
+            self.close()
         logger.debug(
             'Valve initialized. Addr: {}; Pol: {}; State: {}'.format(
                 self.address, 
@@ -54,11 +54,11 @@ class Valve():
     def getState(self):
         return self._state
 
-    def setStateClosed(self):
+    def close(self):
         logger.info('Closing valve : {}'.format(self.address))
         self._setState(True)
 
-    def setStateOpen(self):
+    def open(self):
         logger.info('Opening valve : {}'.format(self.address))
         self._setState(False)
 
@@ -82,9 +82,9 @@ class ValveRGS(Valve):
 
     USB controller device passed to valve as an argument. Valve will only operate on the address it possesses.
     """
-    def __init__(self, USB_device, address, default_state=False):
+    def __init__(self, USB_device, address, default_state=False, polarity_inverted=False):
         self.device = USB_device
-        super().__init__(address, default_state, polarity_inverted=True)
+        super().__init__(address, default_state, polarity_inverted)
 
     def _writeState(self, output):
         if output:

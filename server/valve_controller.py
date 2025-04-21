@@ -1,5 +1,9 @@
 import logging
 import ftd2xx
+import ft4222
+from ft4222.SPI import Cpha, Cpol
+from ft4222.SPIMaster import Mode, Clock, SlaveSelect
+from ft4222.GPIO import Port, Dir
 from .valve import ValveRGS
 
 logger = logging.getLogger(__name__)
@@ -33,15 +37,21 @@ class ValveController():
         self._initValveBanks(valve_param_list)
         self._initValves(valve_param_list)
 
+    def setValveOpen(self, valve):
+        self.valve_dict[valve].open()
+        logger.info('Valve set to open - {}'.format(valve))
+
     def setValvesOpen(self, valve_list: list):
         for valve in valve_list:
-            self.valve_dict[valve].setStateOpen()
-            logger.info('Valve set to open - {}'.format(valve))
+            self.setValveOpen(valve)
 
-    def setValvesClosed(self, valve_list: list):
+    def setValveClose(self, valve):
+        self.valve_dict[valve].close()
+        logger.info('Valve set to closed - {}'.format(valve))
+
+    def setValvesClose(self, valve_list: list):
         for valve in valve_list:
-            self.valve_dict[valve].setStateClosed()
-            logger.info('Valve set to closed - {}'.format(valve))
+            self.setValveClose(valve)
 
     def getValvesStates(self):
         states = []
@@ -85,9 +95,9 @@ class ValveControllerRGS(ValveController):
         b=0
         c=0
         for valve in valve_param_list:
-            if valve[0] < 9:
+            if valve[0] < 8:
                 a += 1
-            elif valve[0] > 16:
+            elif valve[0] > 15:
                 c += 1
             else:
                 b += 1
@@ -103,4 +113,54 @@ class ValveControllerRGS(ValveController):
             self.device.write(b'!C\x00') # !C0, not ideal
 
     def _valveConstructor(self, addr, pol, state):
-        return ValveRGS(USB_device=self.device, address=addr,default_state=state)
+        return ValveRGS(USB_device=self.device, address=addr,default_state=state, polarity_inverted=pol)
+    
+    
+class ValveControllerFTDI(ValveController):
+
+
+    def __init__():
+        pass
+
+    def setValvesOpen(self, valve_list):
+        pass
+    
+    def setValvesClose(self):
+        pass
+
+    def loadUSB(self,serial):
+        ft4222.createDeviceInfoList()
+        try:
+            # 4 USB devices : 3 SPI and 1 GPIO
+            self.bank1 = ft4222.openBySerial(serial + ' A')
+            self.bank2 = ft4222.openBySerial(serial + ' B')
+            self.bank3 = ft4222.openBySerial(serial + ' C')
+            self.led = ft4222.openBySerial(serial + ' D')
+
+            # Initialize FTDI functions
+            self.bank1.spiMaster_Init(Mode.SINGLE, Clock.DIV_8, Cpol.IDLE_LOW, Cpha.CLK_LEADING, SlaveSelect.SS0)
+            self.bank2.spiMaster_Init(Mode.SINGLE, Clock.DIV_8, Cpol.IDLE_LOW, Cpha.CLK_LEADING, SlaveSelect.SS1)
+            self.bank3.spiMaster_Init(Mode.SINGLE, Clock.DIV_8, Cpol.IDLE_LOW, Cpha.CLK_LEADING, SlaveSelect.SS2)
+            self.led.gpio_Init(gpio0 = Dir.OUTPUT)
+            self.led.gpio_Write(Port.P3, 0)
+            self.serial = serial
+
+        except ft4222.FT2XXDeviceError as e:
+            logger.warning(e)
+            raise(e)
+
+    def reloadUSB(self):
+        # Electronically disconnect and reconnect the USB port
+        self.bank1.FT4222.cyclePort()
+        self.bank2.FT4222.cyclePort()
+        self.bank3.FT4222.cyclePort()
+        self.led.FT4222.cyclePort()
+
+        # Close the USB port connection
+        self.bank1.FT4222.close()
+        self.bank2.FT4222.close()
+        self.bank3.FT4222.close()
+        self.led.FT4222.close()
+
+        # Open the USB port connections
+        self.loadUSB(self.serial)

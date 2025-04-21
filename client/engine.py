@@ -280,7 +280,7 @@ class Engine():
                                                                  
                         case 'PUMP':
                             # Format: [PUMP,PUMP1, ON, 5, 10] - Pump Pump1 at 5Hz for 10 cycles
-                            assert line_args[1] in self.valve_groups, "Pump is not a recognized valve group: {}".format(line_args[2]))
+                            assert line_args[1] in self.valve_groups, "Pump is not a recognized valve group: {}".format(line_args[2])
                             assert line_args[2] in self.PumpActions.__members__, "Pump action not recognized: {}".format(line_args[3])
 
                             if line_args[2] is 'ON':
