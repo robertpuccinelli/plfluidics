@@ -1,6 +1,6 @@
 import unittest
 import json
-from server.engine import app_server
+from plfluidics.server.engine import app_server
 
 class TestServerEngine(unittest.TestCase):
     def setUp(self):

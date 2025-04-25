@@ -4,7 +4,7 @@ import ft4222
 from ft4222.SPI import Cpha, Cpol
 from ft4222.SPIMaster import Mode, Clock, SlaveSelect
 from ft4222.GPIO import Port, Dir
-from .valve import ValveRGS
+from plfluidics.valves.valve import ValveRGS
 
 logger = logging.getLogger(__name__)
 

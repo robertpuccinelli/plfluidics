@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Configuration selection</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <style>
+    body {
+        display: flex;
+        height: 100vh;
+        margin: 0;
+    }
+    #panel-left {
+      background-color: #f0f0f0;
+    }
+    #panel-right {
+      background-color: #ffffff;
+      margin-top: 0px;
+    }
+    #panel-right:focus-within {
+      outline: none;
+      border-color: #0078d7;
+      box-shadow: 0 0 0 2px rgba(0, 120, 215, 0.2);
+    }
+    #editable-panel {
+      width: 100%;
+      height: 100%;
+      border: none;
+      font-size: large;
+      line-height: 1.5;
+    }
+    #editable-panel:focus {
+      outline: none;
+      border-color: none;
+      box-shadow: none;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container-column" style="max-width: 1250px; margin: 20px auto">
+    <h1>Microfluidic Controller</h1>
+    <div class="container-row" style="height:60%;">
+      <div class="container-column">
+        <h2>Configuration Files</h2>
+        <div class="panel" id="panel-left">
+          <ul class="file-list" id="file-list">
+            {% for item in file_list %}
+              <li data-filename="{{ item }}">{{ item }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+      <div class="container-column">
+        <h2>File Preview</h2>
+        <div class="panel" id="panel-right">
+          <div id="editable-panel" contenteditable="false"><center>Previewed files can be edited.<br>Edited configs can be loaded without saving.</center></div>
+        </div>
+      </div>
+    </div>
+    <div class="container-row">
+      <div class="container-column"><div class="button-inactive" id="preview">Preview</div></div>
+      <div class="container-column"><div class="button-inactive" id="save">Save</div></div>    
+    </div>
+    <div class="container-row" style="margin-top: 30px;">
+      <div class="container-column"><div class="button-inactive" id="load">Load Configuration</div>
+    </div>
+  </div>
+  <div class="container-column" style="height:10%; margin-top: 30px;">
+    <div class="panel-text" id="error" style="color:coral;">
+      {% if error_msg %}
+        <p>{{ error_msg }}</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+  const fileList = document.getElementById('file-list');
+  const previewButton = document.getElementById('preview');
+  const saveButton = document.getElementById('save');
+  const loadButton = document.getElementById('load')
+  const filePreview = document.getElementById('editable-panel');
+  const errMsg = document.getElementById('error');
+
+  let selectedFile = null;
+  let f_preview = false;
+  let content = null;
+
+  fileList.addEventListener('click', (event) => {
+    const clickedItem = event.target;
+    if (clickedItem.tagName === 'LI') {
+      const selectedItem = fileList.querySelector('.selected');
+      if (selectedItem) {
+        selectedItem.classList.remove('selected');
+      }
+      clickedItem.classList.add('selected');
+      previewButton.classList.remove('button-inactive');
+      previewButton.classList.add('button-active-blue');
+      loadButton.classList.remove('button-inactive');
+      loadButton.classList.add('button-active-green');
+      selectedFile = clickedItem.dataset.filename;
+    }
+  });
+
+  previewButton.addEventListener('click', function() {
+      if (selectedFile) {
+        fetch('/readConfig?file_name=' + selectedFile)
+        .then(response =>{
+          return response.text();
+        })
+        .then(data => {
+          content = data;
+          filePreview.innerHTML = '<pre>' + content + '</pre>';
+          filePreview.contentEditable = "true"; 
+          saveButton.classList.remove('button-inactive');
+          saveButton.classList.add('button-active-blue');
+          f_preview = true;
+        })
+      }
+    });
+
+  saveButton.addEventListener('click', function() {
+    if (f_preview){
+      fetch('/saveConfig', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            text: filePreview.textContent,
+        }),
+      })
+    }
+  });
+
+  loadButton.addEventListener('click', () => {
+    if (selectedFile) {
+      if (f_preview) {
+        fetch('/saveConfig', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+              text: filePreview.textContent,
+          }),
+        })
+      } else {
+        fetch('/readConfig?file_name=' + selectedFile)
+        .then(response =>{
+          return response.text();
+        })
+        .then(data => {
+          content = data;
+          fetch('/setConfig', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                text: content,
+            }),
+          })
+        })
+      }
+    } 
+  });
+</script>
+</body>
+</html>

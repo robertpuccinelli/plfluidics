@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name="plfluidics",
-    version="0.0.2",
+    version="0.1.0",
     author="Robert R. Puccinelli",
     author_email="robert.puccinelli@outlook.com",
     description="Microfluidic control utilities.",
@@ -10,6 +10,7 @@ setuptools.setup(
     python_requires='>=3.10',
     packages=setuptools.find_packages(exclude=["*.tests", "*.tests.*",
                                                "tests.*", "tests"]),
+    package_data={'plfluidics':['server/configs/*.config']},
     include_package_data=True,
     install_requires=[
         'flask',
