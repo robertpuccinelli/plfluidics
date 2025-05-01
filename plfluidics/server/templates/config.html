@@ -38,133 +38,94 @@
 
 <body>
   <div class="container-column" style="max-width: 1250px; margin: 20px auto">
-    <h1>Microfluidic Controller</h1>
+    <a href="/" class="h1-link">Microfluidic Controller</a>
     <div class="container-row" style="height:60%;">
-      <div class="container-column">
+      <div class="container-column" style="max-width: 50%;">
         <h2>Configuration Files</h2>
         <div class="panel" id="panel-left">
           <ul class="file-list" id="file-list">
-            {% for item in file_list %}
-              <li data-filename="{{ item }}">{{ item }}</li>
-            {% endfor %}
+            {% if model.file_list %}
+              {% for item in model.file_list %}
+                <li {% if model.selected == item %}class="selected"{% endif %} data-filename="{{ item }}" >{{ item }}</li>
+              {% endfor %}
+            {% endif %}
           </ul>
         </div>
+        <form method="POST" action="/configPreview">
+            <input type="hidden" id="list_selection" name="item_selected" value="{{ model.selected }}">
+            <button type="submit"  {% if not model.selected %}disabled{% endif%} class="button-inactive {% if model.selected %}button-active-blue{% endif %}" id="preview">Preview</button>
+        </form>
       </div>
-      <div class="container-column">
+      <div class="container-column" style="max-width: 50%;">
         <h2>File Preview</h2>
         <div class="panel" id="panel-right">
-          <div id="editable-panel" contenteditable="false"><center>Previewed files can be edited.<br>Edited configs can be loaded without saving.</center></div>
+          <pre><div id="editable-panel" {% if model.selected %}contenteditable="true"{% endif %}>{% if model.preview_text %}{{model.preview_text | safe}}{% else %}<center>Previewed files can be edited.<br>Edited configs can be loaded without saving.</center>{% endif %}</div></pre>
         </div>
+        <form method="POST" action="/configSave">
+          <div class="container-column">
+            <input type="hidden" name="preview_content" id="save_content">
+            <button type="submit"  {% if not model.selected %}disabled{% endif%} class="button-inactive {% if model.selected %}button-active-blue{% endif %}" id="save">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>   
+    <div class="container-row" style="margin-top: 30px;">
+      <form method="POST" action="/configLoad">
+        <div class="container-column">
+          <input type="hidden" id="load_selection" name="item_selected" value="{{ model.selected }}">
+          <button type="submit"  {% if not model.selected %}disabled{% endif%} class="button-inactive {% if model.selected %}button-active-green{% endif %}" id="load">Load Configuration</button>
+        </div>
+      </form>
+    </div>
+    <div class="container-row" style="height:10%; margin-top: 30px;">
+      <div class="panel-text" id="error" style="color:hotpink; font-size:xx-large; font-weight: bolder;">
+        {% if model.error %}
+          <center>{{ model.error }}</center>
+        {% endif %}
       </div>
     </div>
-    <div class="container-row">
-      <div class="container-column"><div class="button-inactive" id="preview">Preview</div></div>
-      <div class="container-column"><div class="button-inactive" id="save">Save</div></div>    
-    </div>
-    <div class="container-row" style="margin-top: 30px;">
-      <div class="container-column"><div class="button-inactive" id="load">Load Configuration</div>
-    </div>
   </div>
-  <div class="container-column" style="height:10%; margin-top: 30px;">
-    <div class="panel-text" id="error" style="color:coral;">
-      {% if error_msg %}
-        <p>{{ error_msg }}</p>
-      {% endif %}
-    </div>
-  </div>
-</div>
 
-<script>
-  const fileList = document.getElementById('file-list');
-  const previewButton = document.getElementById('preview');
-  const saveButton = document.getElementById('save');
-  const loadButton = document.getElementById('load')
-  const filePreview = document.getElementById('editable-panel');
-  const errMsg = document.getElementById('error');
+  <script>  
+    const fileList = document.getElementById('file-list');
+    const var_item_preview = document.getElementById("list_selection")
+    const var_item_load = document.getElementById("load_selection")
+    const b_preview = document.getElementById('preview');
+    const b_load = document.getElementById('load');
 
-  let selectedFile = null;
-  let f_preview = false;
-  let content = null;
-
-  fileList.addEventListener('click', (event) => {
-    const clickedItem = event.target;
-    if (clickedItem.tagName === 'LI') {
-      const selectedItem = fileList.querySelector('.selected');
-      if (selectedItem) {
-        selectedItem.classList.remove('selected');
-      }
-      clickedItem.classList.add('selected');
-      previewButton.classList.remove('button-inactive');
-      previewButton.classList.add('button-active-blue');
-      loadButton.classList.remove('button-inactive');
-      loadButton.classList.add('button-active-green');
-      selectedFile = clickedItem.dataset.filename;
-    }
-  });
-
-  previewButton.addEventListener('click', function() {
-      if (selectedFile) {
-        fetch('/readConfig?file_name=' + selectedFile)
-        .then(response =>{
-          return response.text();
-        })
-        .then(data => {
-          content = data;
-          filePreview.innerHTML = '<pre>' + content + '</pre>';
-          filePreview.contentEditable = "true"; 
-          saveButton.classList.remove('button-inactive');
-          saveButton.classList.add('button-active-blue');
-          f_preview = true;
-        })
+    fileList.addEventListener('click', (event) => {
+      const clickedItem = event.target;
+      if (clickedItem.tagName === 'LI') {
+        const selectedItem = fileList.querySelector('.selected');
+        if (selectedItem) {
+          selectedItem.classList.remove('selected');
+        }
+        clickedItem.classList.add('selected');
+        var_item_preview.value = clickedItem.dataset.filename;
+        var_item_load.value = clickedItem.dataset.filename;
+        b_preview.removeAttribute('disabled');
+        b_preview.classList.add('button-active-blue');
+        b_load.removeAttribute('disabled');
+        b_load.classList.add('button-active-green');
       }
     });
 
-  saveButton.addEventListener('click', function() {
-    if (f_preview){
-      fetch('/saveConfig', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            text: filePreview.textContent,
-        }),
-      })
-    }
-  });
+    const form_save = document.getElementById("save")
+    const var_save_content = document.getElementById("save_content")
+    const preview_panel = document.getElementById("editable-panel")
 
-  loadButton.addEventListener('click', () => {
-    if (selectedFile) {
-      if (f_preview) {
-        fetch('/saveConfig', {
-          method: 'POST',
-          headers: {
-              'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-              text: filePreview.textContent,
-          }),
-        })
-      } else {
-        fetch('/readConfig?file_name=' + selectedFile)
-        .then(response =>{
-          return response.text();
-        })
-        .then(data => {
-          content = data;
-          fetch('/setConfig', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                text: content,
-            }),
-          })
-        })
+    form_save.addEventListener('click', function(event) {
+      event.preventDefault();
+      var_save_content.value = preview_panel.textContent;
+      this.form.submit();
+    });
+
+    preview_panel.addEventListener('keydown', function(event) {
+      if (event.key === 'Enter') {
+      event.preventDefault();
+      document.execCommand('insertHTML', false, '\r\n');
       }
-    } 
-  });
-</script>
+    });
+  </script>  
 </body>
 </html>

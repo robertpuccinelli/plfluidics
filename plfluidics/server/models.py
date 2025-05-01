@@ -48,11 +48,11 @@ class ModelMicrofluidicController():
 
         self.reset()
         self.data['config']=curr_config
-        self.data['server']['status'] = 'driver_not_set'
+        self.data['server']['status'] = 'driver_not_initialized'
         
     def driverSet(self):
         config = self.configGet()
-        if config['driver'] is 'rgs':
+        if config['driver'] == 'rgs':
             valves = config['valves']
             valve_list = []
             valve_def_position = {}
@@ -70,7 +70,7 @@ class ModelMicrofluidicController():
             self.data['controller'] = ValveControllerRGS(valve_list)
             self.data['server']['valve_states']= valve_def_position
 
-        elif config['driver'] is 'none':
+        elif config['driver'] == 'none':
             self.data['controller'] = []
             self.data['server']['valve_states']={}
     
@@ -81,3 +81,11 @@ class ModelMicrofluidicController():
     def closeValve(self, valve):
         self.data['controller'].setValveClose(valve)
         self.data['server']['valve_states'][valve] = 'close'
+
+
+class ModelConfig():
+    def __init__(self):
+        self.file_list = None
+        self.selected = None
+        self.error = None
+        self.preview_text = None
