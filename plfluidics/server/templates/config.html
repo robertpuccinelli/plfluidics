@@ -3,37 +3,6 @@
 <head>
   <title>Configuration selection</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-  <style>
-    body {
-        display: flex;
-        height: 100vh;
-        margin: 0;
-    }
-    #panel-left {
-      background-color: #f0f0f0;
-    }
-    #panel-right {
-      background-color: #ffffff;
-      margin-top: 0px;
-    }
-    #panel-right:focus-within {
-      outline: none;
-      border-color: #0078d7;
-      box-shadow: 0 0 0 2px rgba(0, 120, 215, 0.2);
-    }
-    #editable-panel {
-      width: 100%;
-      height: 100%;
-      border: none;
-      font-size: large;
-      line-height: 1.5;
-    }
-    #editable-panel:focus {
-      outline: none;
-      border-color: none;
-      box-shadow: none;
-    }
-  </style>
 </head>
 
 <body>

@@ -15,6 +15,10 @@ class MicrofluidicController():
         self.ctrl_model = ModelMicrofluidicController()
         self.error = None
 
+    ################
+    # PAGE SERVICE #
+    ################
+
     def renderPage(self):
         if self.ctrl_model.data['server']['status'] == 'no_config':
             self.config_model.file_list = self.loadConfigFileList()
@@ -23,8 +27,7 @@ class MicrofluidicController():
             return self.controlPage()
 
     def configPage(self):
-        print('Config page rendering')
-        return render_template('config2.html', model=self.config_model)
+        return render_template('config.html', model=self.config_model)
 
     def controlPage(self):
         return render_template(url_for('index'))
@@ -41,10 +44,9 @@ class MicrofluidicController():
                                driver = driver,
                                device_name = device_name,
                                valve_states=valve_states)
-    
-    def reset(self):
-        self.ctrl_model.reset()
-        return redirect(url_for('index'))
+
+    def templatesDir(self):
+        return f'{importlib.resources.files('plfluidics.server.templates').joinpath('config.html').parent}'
     
     ##########
     # CONFIG #
@@ -85,8 +87,18 @@ class MicrofluidicController():
             config = self.processConfig(data)
             linear_config = self.configLinearize(config)
             self.ctrl_model.configSet(linear_config)
+            self.ctrl_model.driverSet()
         except Exception as e:
             self.config_model.error = f'Error loading config. {e}'
+        return self.renderPage()
+
+    def configChange(self):
+        self.__init__()
+        return self.renderPage()
+
+    def configReload(self):
+        self.ctrl_model.reset()
+        self.configLoad()
         return self.renderPage()
 
     ####################
@@ -164,26 +176,49 @@ class MicrofluidicController():
                 raise ValueError(f'Config not formatted properly. Key: {key}')
         return new_dict
 
-    ###########
-    # CONTROL #
-    ###########
+    #########
+    # VALVE #
+    #########
 
-    def toggleValve(self, valve):
-        if self.checkValveExists(valve):
-            curr_state = self.ctrl_model.data['server']['valve_states'][valve]
-            if curr_state == 'open':
-                self.ctrl_model.closeValve(valve)
-            elif curr_state == 'closed':
-                self.ctrl_model.openValve(valve)
+    def valveToggle(self, valve):
+        try:
+            valve=request.form.get('valve')
+            if self.checkValveExists(valve):
+                curr_state = self.ctrl_model.data['server']['valve_states'][valve]
+                if curr_state == 'open':
+                    self.ctrl_model.closeValve(valve)
+                elif curr_state == 'closed':
+                    self.ctrl_model.openValve(valve)
+        except Exception as e:
+            pass
         return redirect(url_for('index'))
     
+    def valveOpenList(self):
+        try:
+            data=request.form.get('valve')
+            valves_list = data.split(',')
+            for valve in valves_list:
+                self.ctrl_model.openValve(valve)
+        except Exception as e:
+            pass
+        return redirect(url_for('index'))
+
+    def valveCloseList(self):
+        try:
+            data=request.form.get('valve')
+            valves_list = data.split(',')
+            for valve in valves_list:
+                self.ctrl_model.closeValve(valve)
+        except Exception as e:
+            pass
+        return redirect(url_for('index'))
+
+    ###################
+    # VALVE UTILITIES #
+    ###################
+
     def openValve(self, valve):
         if self.checkValveExists(valve):
-            self.ctrl_model.openValve(valve)
-        return redirect(url_for('index'))
-    
-    def openAll(self):
-        for valve in self.ctrl_model['server']['valve_states']:
             self.ctrl_model.openValve(valve)
         return redirect(url_for('index'))
 
@@ -191,27 +226,37 @@ class MicrofluidicController():
         if self.checkValveExists(valve):
             self.ctrl_model.closeValve(valve)
         return redirect(url_for('index'))
-    
-    def closeAll(self):
-        for valve in self.ctrl_model['server']['valve_states']:
-            self.ctrl_model.closeValve(valve)
-        return redirect(url_for('index'))
+
+    def checkValveExists(self, valve):
+        if valve in self.ctrl_model.data['server']['valve_states']:
+            return True
+        else:
+            raise ValueError(f'Valve not present in model: {valve}')
+        
+
+    ##########
+    # SCRIPT #
+    ##########
+
+    def scriptLoad(self):
+        pass
+
+    def scriptSave(self):
+        pass
+
+    def scriptToggle(self):
+        pass
+
+    def scriptSkip(self):
+        pass
+
+    def scriptStop(self):
+        pass
 
 
-#############
-# UTILITIES #
-#############
-
-    def setConfig(self):
-        if request.is_json:
-            data=request.get_json().get('text')
-            config = self.processConfig(data)
-            self.ctrl_model.configSet = config
-            self.ctrl_model.setDriver()
-        return self.renderPage()       
-
-    def templatesDir(self):
-        return f'{importlib.resources.files('plfluidics.server.templates').joinpath('config.html').parent}'
+    #############
+    # UTILITIES #
+    #############      
 
     def configInitialize(self, data):
         try:
@@ -222,8 +267,4 @@ class MicrofluidicController():
             Logger.warning(f'Failed to set config: {e}')
 
         return redirect(url_for('index'))
-    
-    def checkValveExists(self, valve):
-        if valve in self.ctrl_model.data['server']['valve_states']:
-            return True
     
