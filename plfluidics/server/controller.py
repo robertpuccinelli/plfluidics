@@ -2,6 +2,7 @@
 '''
 import os
 import json
+import time
 import importlib.resources
 from logging import Logger
 from flask import request, render_template, redirect, url_for
@@ -14,6 +15,14 @@ class MicrofluidicController():
         self.config_model = ModelConfig()
         self.ctrl_model = ModelMicrofluidicController()
         self.error = None
+        self.script_operations = ['open','close', 'wait', 'pump']
+        self.script_wait_units = ['s', 'm', 'h']
+        self.script_pump_units = ['hz']
+        self.script_next_time = 0
+        self.script_wait = False
+        self.script_run = False
+        self.script_pause = False
+        self.script = []
 
     ################
     # PAGE SERVICE #
@@ -237,6 +246,16 @@ class MicrofluidicController():
     ##########
     # SCRIPT #
     ##########
+        '''
+        self.script_operations = ['open','close', 'wait', 'pump']
+        self.script_wait_units = ['s', 'm', 'h']
+        self.script_pump_units = ['hz']
+        self.script_next_time = 0
+        self.script_wait = False
+        self.script_run = False
+        self.script_pause = False
+        self.script_interrupt = False
+        self.script = []'''
 
     def scriptLoad(self):
         pass
@@ -254,17 +273,107 @@ class MicrofluidicController():
         pass
 
 
-    #############
-    # UTILITIES #
-    #############      
+    ####################
+    # SCRIPT UTILITIES #
+    ####################
 
-    def configInitialize(self, data):
+    def scriptEngine(self):
+        if self.script_interrupt:
+            self.processScriptInterrupt()
+        if self.script_wait:
+            t_now = time.time()
+            if t_now < self.script_next_time:
+                # int(t_now - self.script_next_time)
+                # time.strftime('%H:%M:%S', time.localtime(self.script_next_time))
+
+
+    def scriptExecute(self, cmd):
+        if cmd[0] == 'open':
+            self.openValve(cmd[1])
+        elif cmd[0] == 'closed':
+            self.closeValve(cmd[1])
+        elif cmd[0] =='wait':
+            self.script_next_time = time.time() + cmd[1]
+            self.script_wait = True
+
+    def startScriptEngine(self):
+        pass
+
+    def stopScriptEngine(self):
+        pass
+
+    def pauseScriptEngine(self):
+        pass
+
+    def processScriptInterrupt(self):
+        pass
+
+    def processScript(self, input):
+        """Process user submitted script.
+        
+        1. Breaks lines by carriage returns
+        2. Skips empty lines
+        3. Removes leading spaces
+        4. Skips `#` comment lines
+        5. Identifies operation
+        6. Extracts necessary parameters (Ignores end of line comments)
+        7. Returns processed script
+        """
         try:
-            data = request.get_json()
-            config = self.processConfig(data)
-            self.ctrl_model.configSet(config)
-        except Exception as e:
-            Logger.warning(f'Failed to set config: {e}')
+            approx_time = 0
+            line_number = 0
+            new_script = []
+            input_list = input.lower().split('\r\n')  # Split script into list based on carriage returns
+            for line in input_list:
+                new_line = []
+                if line:  # Skip empty lines
+                    no_space = line.lstrip()  # Remove leading spaces
+                    if no_space[0] !='#':  # Skip commented lines
+                        line_number += 1
+                        op = no_space.split(' ')  # Split line arguments by space
+                        if op[0] not in self.script_operations:  # Identify operation
+                            raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]}` not in recognized list: {self.script_operations}.')
 
-        return redirect(url_for('index'))
+                        if (op[0] == 'open') or (op[0] == 'close'):
+                            if len(op) < 2:  # Identify missing argument
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]} requires a valve.')
+                            valve = op[1]
+                            if valve not in self.ctrl_model['config']['valves']:  # Identify typos
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Valve `{valve}` in operation `{op}` not recognized.')
+                            new_line = [op,valve]
+
+                        if op[0] =='wait':
+                            if len(op) < 3:  # Identify missing argument
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `wait` requires a duration and unit of time.')
+                            if not op[1].isdigit():  # Check if wait duration is an integer
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `wait` duration length is not an integer - {op[1]}')
+                            if op[2] not in self.script_time_units:  # Check if wait unit is recognized
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `wait` duration unit must be one of the following - {self.script_time_units}')                    
+                            step_time = 0
+                            if op[2] == 'm':
+                                step_time = 60 * int(op[1])
+                            elif op[2] == 'h':
+                                step_time = 3600 * int(op[1])
+                            else:
+                                step_time = int(op[1])
+                            approx_time += step_time
+                            new_line = [op[0], step_time]
+
+                        if op[0] == 'pump':
+                            if len(op) < 3:  # Identify missing argument
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `pump` requires a frequency value and unit.')
+                            if not op[1].isdigit():  # Check if frequency value is an integer
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `pump` frequency value is not an integer - {op[1]}')
+                            if op[2] not in self.script_time_units:  # check if frequency unit is recognized
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `pump` unit must be one of the following - {self.script_time_units}')
+                            new_line = [op[0], op[1]]
+
+                if new_line:
+                    new_script.append(new_line)
+
+        except Exception as e:
+            raise e
+
+        return new_script
+
     
