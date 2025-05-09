@@ -21,16 +21,17 @@ class MicrofluidicController():
 
     def renderPage(self):
         if self.ctrl_model.data['server']['status'] == 'no_config':
-            self.config_model.file_list = self.loadConfigFileList()
+            self.config_model.file_list, self.config_model.error = self.loadFileList('configs')
             return self.configPage()
         else:
+            self.control_model.file_list, self.ctrl_model.error = self.loadFileList('scripts')
             return self.controlPage()
 
     def configPage(self):
         return render_template('config.html', model=self.config_model)
 
     def controlPage(self):
-        return render_template(url_for('index'))
+        return render_template(self.ctrl_model['config']['device'] + '.html', model = self.ctrl_model)
     
     def index(self):
         server_status = self.ctrl_model.data['server']['status']
@@ -128,14 +129,15 @@ class MicrofluidicController():
             new_config[field] = formatted_data[field]
         return new_config
     
-    def loadConfigFileList(self):
+    def loadFileList(self, dir):
+        error = None
         try:
-            file_list = list(importlib.resources.contents('plfluidics.server.configs'))
+            file_list = list(importlib.resources.contents('plfluidics.server.' + dir))
             if file_list == []:
-                raise ValueError(f"No config files found in: {importlib.resources.files('plfluidics.server.configs')}")
+                raise ValueError(f"No config files found in: {importlib.resources.files('plfluidics.server.' + dir)}")
         except Exception as e:
-            self.config_model.error = e
-        return file_list
+            error = e
+        return file_list, error
 
     def configLinearize(self, data):
         # Linearize valve data from dict of dicts to list of dicts
@@ -237,12 +239,34 @@ class MicrofluidicController():
     ##########
     # SCRIPT #
     ##########
-
+    """
+    script.preview_text
+    ctrl_model.error
+    """
     def scriptLoad(self):
-        pass
+        self.ctrl_model.error = None
+        try:
+            file_name = request.form.get('item_selected')
+            self.ctrl_model.preview_text = self.configRead(file_name)
+            self.ctrl_model.selected = file_name
+        except Exception as e:
+            self.ctrl_model.error = f'Error opening {file_name} : {e}'
+        return self.renderPage()
 
     def scriptSave(self):
-        pass
+        self.ctrl_model.error = None
+        try:
+            file_name = request.form.get('text')
+            data = request.form.get('preview_content')
+            self.ctrl_model.preview_text=data
+            script = self.processScript(data)
+            # TODO - Check to see if user put .script at end of file
+            file_path = importlib.resources.files('plfluidics.server.scripts').joinpath(file_name + '.script')
+            with open(file_path, 'w') as f:
+                json.dump(script,f, indent=0)
+        except Exception as e:
+            self.ctrl_model.error = f'Error saving script. {e}'
+        return self.renderPage()
 
     def scriptToggle(self):
         pass
