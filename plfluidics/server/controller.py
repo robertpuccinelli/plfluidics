@@ -18,10 +18,14 @@ class MicrofluidicController():
         self.script_operations = ['open','close', 'wait', 'pump']
         self.script_wait_units = ['s', 'm', 'h']
         self.script_pump_units = ['hz']
-        self.script_next_time = 0
+        self.script_time_step_next = 0
+        self.script_time_accumulated = 0
+        self.script_time_step_duration = 0
+        self.script_time_expected = 0
         self.script_wait = False
         self.script_run = False
         self.script_pause = False
+        self.script_state
         self.script = []
 
     ################
@@ -250,11 +254,15 @@ class MicrofluidicController():
         self.script_operations = ['open','close', 'wait', 'pump']
         self.script_wait_units = ['s', 'm', 'h']
         self.script_pump_units = ['hz']
-        self.script_next_time = 0
+        self.script_time_step_next = 0
+        self.script_time_accumulated = 0
+        self.script_time_step_duration = 0
+        self.script_time_expected = 0
         self.script_wait = False
         self.script_run = False
         self.script_pause = False
         self.script_interrupt = False
+        self.script_state = 'idle'
         self.script = []'''
 
     def scriptLoad(self):
@@ -278,23 +286,109 @@ class MicrofluidicController():
     ####################
 
     def scriptEngine(self):
-        if self.script_interrupt:
-            self.processScriptInterrupt()
-        if self.script_wait:
-            t_now = time.time()
-            if t_now < self.script_next_time:
-                # int(t_now - self.script_next_time)
-                # time.strftime('%H:%M:%S', time.localtime(self.script_next_time))
+
+        while(1):
+            next_state = self.script_state
+            interrupt = self.processScriptInterrupt()
+
+            # IDLE #
+            if self.script_state == 'idle':
+                if interrupt == 'start-pause':
+                    if self.script:
+                        next_state = 'running'
+            
+            # PAUSED #
+            if self.script_state == 'paused':
+                if interrupt == 'start-pause':
+                    self.script_time_step_next = time.time() + self.script_time_step_remaining
+                    next_state = 'running'
+
+                if interrupt == 'skip':
+                    self.scriptAdvance()
+                    if self.script != []:
+                        next_state = 'paused'
+                    else:
+                        next_state = 'idle'
+
+                if interrupt == 'stop':
+                    self.scriptResetTimers()
+                    next_state = 'idle'
+
+            # RUNNING #
+            if self.script_state == 'running':
+                if interrupt == 'stop':
+                    self.scriptResetTimers()
+                    next_state = 'idle'
+
+                elif interrupt == 'start-pause':
+                    self.script_time_step_remaining = self.script_time_step_next - time.time()
+                    next_state = 'paused'
+
+                elif interrupt == 'skip':
+                    self.scriptAdvance()
+                    next_state = 'running'
+
+                else:
+                    if not self.script_time_step_next:
+                        self.scriptExecute()
+
+                    if self.script_time_step_next < time.time():
+                        self.scriptAdvance()
+
+                    if self.script != []:
+                        next_state = 'running'
+                    else:
+                        next_state = 'idle'
+
+            self.script_state = next_state
+
+
+        """     if self.script_interrupt:
+                    self.processScriptInterrupt()
+                if self.script_wait:
+                    t_now = time.time()
+                    if t_now < self.script_next_time:
+                        # int(t_now - self.script_next_time)
+                        # time.strftime('%H:%M:%S', time.localtime(self.script_next_time))
+                        pass
+                    else:
+                        self.script_wait = False
+                        self.script.pop(0)
+                        self.scriptExecute(self.script[0])
+                else:
+                    self.scriptExecute(self.script[0])
+                    if not self.script_wait:
+                        self.script.pop(0)
+                    
+        """
+
+    def scriptResetStepTimers(self):
+        self.script_time_step_duration = 0
+        self.script_time_step_next = 0
+        self.script_time_step_remaining = 0
+
+    def scriptResetTimers(self):
+        self.script_time_expected = 0
+        self.script_time_accumulated = 0
+        self.scriptResetStepTimers()
+
+    def scriptAdvance(self):
+        step = self.script.pop(0)
+        if step[0] == 'wait':
+            self.scriptResetStepTimers()
+            self.script_time_accumulated += step[1]
 
 
     def scriptExecute(self, cmd):
         if cmd[0] == 'open':
             self.openValve(cmd[1])
+            self.script_wait = False
         elif cmd[0] == 'closed':
             self.closeValve(cmd[1])
+            self.script_wait = False
         elif cmd[0] =='wait':
-            self.script_next_time = time.time() + cmd[1]
-            self.script_wait = True
+            self.script_step_duration = cmd[1]
+            self.script_time_step_next = time.time() + self.script_step_duration
 
     def startScriptEngine(self):
         pass
@@ -374,6 +468,6 @@ class MicrofluidicController():
         except Exception as e:
             raise e
 
-        return new_script
+        return new_script, approx_time
 
     
