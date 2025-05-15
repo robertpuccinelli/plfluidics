@@ -1,32 +1,23 @@
 '''Controller in model-view-controller framework for microfluidic hardware control application.
 '''
-import os
 import json
-import time
 import importlib.resources
+import queue
+import threading
 from logging import Logger
 from flask import request, render_template, redirect, url_for
-from plfluidics.server.models import ModelMicrofluidicController, ModelConfig
+from plfluidics.server.models import ModelValves, ModelConfig, ModelScript
 
 
 class MicrofluidicController():
 
     def __init__(self):
-        self.config_model = ModelConfig()
-        self.ctrl_model = ModelMicrofluidicController()
+        self.userQ = queue.Queue()
+        self.scriptQ = queue.Queue()
         self.error = None
-        self.script_operations = ['open','close', 'wait', 'pump']
-        self.script_wait_units = ['s', 'm', 'h']
-        self.script_pump_units = ['hz']
-        self.script_time_step_next = 0
-        self.script_time_accumulated = 0
-        self.script_time_step_duration = 0
-        self.script_time_expected = 0
-        self.script_wait = False
-        self.script_run = False
-        self.script_pause = False
-        self.script_state
-        self.script = []
+        self.config_model = ModelConfig()
+        self.ctrl_model = ModelValves()
+        self.script_model = ModelScript(self.userQ, self.scriptQ)
 
     ################
     # PAGE SERVICE #
@@ -124,23 +115,6 @@ class MicrofluidicController():
             with open(file_path, 'r') as f:
                 file_content = f.read()
             return file_content
-
-    def processConfig(self, data):
-        '''Validate configuration format and extract data'''
-        formatted_data = self.lowercaseDict(data)
-        fields = self.ctrl_model.optionsGet()
-        config_fields = set(fields['config_fields'])
-        config_set = set(formatted_data)
-        if config_fields.difference(config_set):
-            raise KeyError(f'Key missing in config: {config_fields.difference(config_set)}')   
-        if config_set.difference(config_fields):
-            raise KeyError(f'Extra keys found in config: {config_set.difference(config_fields)}')
-        if formatted_data['driver'] not in fields['driver_options']:
-            raise ValueError(f'Driver not in recognized list: {fields['driver_options']}')
-        new_config={}
-        for field in fields['config_fields']:
-            new_config[field] = formatted_data[field]
-        return new_config
     
     def loadFileList(self, dir):
         error = None
@@ -152,44 +126,6 @@ class MicrofluidicController():
             error = e
         return file_list, error
 
-    def configLinearize(self, data):
-        # Linearize valve data from dict of dicts to list of dicts
-        try:
-            valves = data['valves']
-            fields = self.ctrl_model.optionsGet()
-            valve_fields = fields['valve_fields']
-            valve_fields.remove('valve_alias')
-            valve_data = []
-            for valve in valves:
-                try:
-                    temp_valve = {'valve_alias': valve}
-                    temp_valve = temp_valve | {key:valves[valve][key] for key in valve_fields}
-                except Exception as e:
-                    raise KeyError(f'Field missing from valve configuration: {e}')
-                valve_data.append(temp_valve)
-            data['valves'] = valve_data
-        except Exception as e:
-            self.config_model.error = f'Error transforming config to model format. {e}'
-        return data
-
-    def lowercaseDict(self, data):
-        '''Change text in dict to be lowercase.'''
-        if isinstance(data,str):
-            data = json.loads(data)
-        new_dict = {}
-        for key in set(data):
-            value = data[key]
-            if isinstance(value, int):
-                new_dict[key.lower()] = value 
-            elif isinstance(value, str):
-                new_dict[key.lower()] = value.lower()
-            elif isinstance(value, bool):
-                new_dict[key.lower()] = value 
-            elif isinstance(value, dict):
-                new_dict[key.lower()] = self.lowercaseDict(value)
-            else:
-                raise ValueError(f'Config not formatted properly. Key: {key}')
-        return new_dict
 
     #########
     # VALVE #
@@ -252,24 +188,6 @@ class MicrofluidicController():
     ##########
     # SCRIPT #
     ##########
-    """
-    script.preview_text
-    ctrl_model.error
-    """
-        '''
-        self.script_operations = ['open','close', 'wait', 'pump']
-        self.script_wait_units = ['s', 'm', 'h']
-        self.script_pump_units = ['hz']
-        self.script_time_step_next = 0
-        self.script_time_accumulated = 0
-        self.script_time_step_duration = 0
-        self.script_time_expected = 0
-        self.script_wait = False
-        self.script_run = False
-        self.script_pause = False
-        self.script_interrupt = False
-        self.script_state = 'idle'
-        self.script = []'''
 
     def scriptLoad(self):
         self.ctrl_model.error = None
@@ -310,189 +228,52 @@ class MicrofluidicController():
     # SCRIPT UTILITIES #
     ####################
 
-    def scriptEngine(self):
-
-        while(1):
-            next_state = self.script_state
-            interrupt = self.processScriptInterrupt()
-
-            # IDLE #
-            if self.script_state == 'idle':
-                if interrupt == 'start-pause':
-                    if self.script:
-                        next_state = 'running'
-            
-            # PAUSED #
-            if self.script_state == 'paused':
-                if interrupt == 'start-pause':
-                    self.script_time_step_next = time.time() + self.script_time_step_remaining
-                    next_state = 'running'
-
-                if interrupt == 'skip':
-                    self.scriptAdvance()
-                    if self.script != []:
-                        next_state = 'paused'
-                    else:
-                        next_state = 'idle'
-
-                if interrupt == 'stop':
-                    self.scriptResetTimers()
-                    next_state = 'idle'
-
-            # RUNNING #
-            if self.script_state == 'running':
-                if interrupt == 'stop':
-                    self.scriptResetTimers()
-                    next_state = 'idle'
-
-                elif interrupt == 'start-pause':
-                    self.script_time_step_remaining = self.script_time_step_next - time.time()
-                    next_state = 'paused'
-
-                elif interrupt == 'skip':
-                    self.scriptAdvance()
-                    next_state = 'running'
-
-                else:
-                    if not self.script_time_step_next:
-                        self.scriptExecute()
-
-                    if self.script_time_step_next < time.time():
-                        self.scriptAdvance()
-
-                    if self.script != []:
-                        next_state = 'running'
-                    else:
-                        next_state = 'idle'
-
-            self.script_state = next_state
-
-
-        """     if self.script_interrupt:
-                    self.processScriptInterrupt()
-                if self.script_wait:
-                    t_now = time.time()
-                    if t_now < self.script_next_time:
-                        # int(t_now - self.script_next_time)
-                        # time.strftime('%H:%M:%S', time.localtime(self.script_next_time))
-                        pass
-                    else:
-                        self.script_wait = False
-                        self.script.pop(0)
-                        self.scriptExecute(self.script[0])
-                else:
-                    self.scriptExecute(self.script[0])
-                    if not self.script_wait:
-                        self.script.pop(0)
-                    
-        """
-
-    def scriptResetStepTimers(self):
-        self.script_time_step_duration = 0
-        self.script_time_step_next = 0
-        self.script_time_step_remaining = 0
-
-    def scriptResetTimers(self):
-        self.script_time_expected = 0
-        self.script_time_accumulated = 0
-        self.scriptResetStepTimers()
-
-    def scriptAdvance(self):
-        step = self.script.pop(0)
-        if step[0] == 'wait':
-            self.scriptResetStepTimers()
-            self.script_time_accumulated += step[1]
-
-
-    def scriptExecute(self, cmd):
-        if cmd[0] == 'open':
-            self.openValve(cmd[1])
-            self.script_wait = False
-        elif cmd[0] == 'closed':
-            self.closeValve(cmd[1])
-            self.script_wait = False
-        elif cmd[0] =='wait':
-            self.script_step_duration = cmd[1]
-            self.script_time_step_next = time.time() + self.script_step_duration
-
     def startScriptEngine(self):
-        pass
+        if self.script_model.state == 'idle':
+            self.script_processor = threading.Thread(self.scriptProcessor)
+            self.script_state_machine = threading.Thread(self.script_model.engine)
+            self.script_processor.start()
+            self.script_state_machine.start()
+
+        elif self.script_model.state == 'running':
+            self.userQ.put('start-pause')
+
+        elif self.script_model.state == 'paused':
+            self.userQ.put('start-pause')
+
+    def skipScriptEngine(self):
+        if self.script_model.state != 'idle':
+            self.userQ.put('skip')
 
     def stopScriptEngine(self):
-        pass
+        if self.script_model.state != 'idle':
+            self.userQ.put('stop')
+            self.userQ.put(None)
+            self.script_state_machine.join()
+            self.script_processor.join()
 
-    def pauseScriptEngine(self):
-        pass
+    #########################
+    # CTRL SCRIPT PROCESSOR #
+    #########################
 
-    def processScriptInterrupt(self):
-        pass
+    def scriptProcessor(self):
 
-    def processScript(self, input):
-        """Process user submitted script.
-        
-        1. Breaks lines by carriage returns
-        2. Skips empty lines
-        3. Removes leading spaces
-        4. Skips `#` comment lines
-        5. Identifies operation
-        6. Extracts necessary parameters (Ignores end of line comments)
-        7. Returns processed script
-        """
-        try:
-            approx_time = 0
-            line_number = 0
-            new_script = []
-            input_list = input.lower().split('\r\n')  # Split script into list based on carriage returns
-            for line in input_list:
-                new_line = []
-                if line:  # Skip empty lines
-                    no_space = line.lstrip()  # Remove leading spaces
-                    if no_space[0] !='#':  # Skip commented lines
-                        line_number += 1
-                        op = no_space.split(' ')  # Split line arguments by space
-                        if op[0] not in self.script_operations:  # Identify operation
-                            raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]}` not in recognized list: {self.script_operations}.')
+        while(self.script_model.state != "idle"):
+            # Process user input
+            
 
-                        if (op[0] == 'open') or (op[0] == 'close'):
-                            if len(op) < 2:  # Identify missing argument
-                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]} requires a valve.')
-                            valve = op[1]
-                            if valve not in self.ctrl_model['config']['valves']:  # Identify typos
-                                raise SyntaxError(f'Script formatting error. Line {line_number} : Valve `{valve}` in operation `{op}` not recognized.')
-                            new_line = [op,valve]
+            # Process script output
+            try:
+                msg = self.scriptQ.get_nowait()
+                if msg[0] == 'open':
+                    self.openValve(msg[1])
+                elif msg[0] == 'close':
+                    self.closeValve(msg[1])
+                elif msg[0] == 'pause':
+                    pass
+                elif msg[0] is None:
+                    # Terminate loop
+                    break
 
-                        if op[0] =='wait':
-                            if len(op) < 3:  # Identify missing argument
-                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `wait` requires a duration and unit of time.')
-                            if not op[1].isdigit():  # Check if wait duration is an integer
-                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `wait` duration length is not an integer - {op[1]}')
-                            if op[2] not in self.script_time_units:  # Check if wait unit is recognized
-                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `wait` duration unit must be one of the following - {self.script_time_units}')                    
-                            step_time = 0
-                            if op[2] == 'm':
-                                step_time = 60 * int(op[1])
-                            elif op[2] == 'h':
-                                step_time = 3600 * int(op[1])
-                            else:
-                                step_time = int(op[1])
-                            approx_time += step_time
-                            new_line = [op[0], step_time]
-
-                        if op[0] == 'pump':
-                            if len(op) < 3:  # Identify missing argument
-                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `pump` requires a frequency value and unit.')
-                            if not op[1].isdigit():  # Check if frequency value is an integer
-                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `pump` frequency value is not an integer - {op[1]}')
-                            if op[2] not in self.script_time_units:  # check if frequency unit is recognized
-                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `pump` unit must be one of the following - {self.script_time_units}')
-                            new_line = [op[0], op[1]]
-
-                if new_line:
-                    new_script.append(new_line)
-
-        except Exception as e:
-            raise e
-
-        return new_script, approx_time
-
-    
+            except queue.empty as e:
+                pass

@@ -1,13 +1,13 @@
 import unittest
 from unittest.mock import Mock, patch
-from plfluidics.server.model import ModelMicrofluidicController
+from plfluidics.server.models import ModelValves
 from plfluidics.valves.valve_controller import ValveControllerRGS
 
-class TestModelMicrofluidicController(unittest.TestCase):
+class TestModelValves(unittest.TestCase):
 
     def setUp(self):
-        """Set up an instance of the ModelMicrofluidicController before each test."""
-        self.model = ModelMicrofluidicController()
+        """Set up an instance of the ModelValves before each test."""
+        self.model = ModelValves()
 
     def test_reset(self):
         """Test the reset method initializes data structures correctly."""
@@ -59,9 +59,33 @@ class TestModelMicrofluidicController(unittest.TestCase):
         }
         self.assertEqual(self.model.data['config'], expected_config)
         # Check if the server status is updated.
-        self.assertEqual(self.model.data['server']['status'], 'driver_not_set')
+        self.assertEqual(self.model.data['server']['status'], 'driver_not_initialized')
 
-    @patch('plfluidics.server.model.ValveControllerRGS', autospec=True)
+    def test_configSet_missing_keys(self):
+        """Test configSet raises KeyError if keys are missing."""
+        incomplete_config = {
+            'config_name': 'test_config',
+            'device': 'test_device',
+            # 'driver' key is missing
+            'valves': []
+        }
+        with self.assertRaises(KeyError):
+            self.model.configSet(incomplete_config)
+
+    def test_configSet_extra_keys(self):
+        """Test configSet ignores extra keys (should not raise error, but extra keys are not kept)."""
+        config = {
+            'config_name': 'test_config',
+            'device': 'test_device',
+            'driver': 'none',
+            'valves': [],
+            'extra_key': 123
+        }
+        # Should not raise, but extra_key should not be present after set
+        self.model.configSet(config)
+        self.assertNotIn('extra_key', self.model.data['config'])
+
+    @patch('plfluidics.server.models.ValveControllerRGS', autospec=True)
     def test_driverSet_rgs(self, MockValveControllerRGS):
         """Test the driverSet method with 'rgs' driver."""
         #  Prevent the actual ValveControllerRGS.__init__ from being called.
@@ -95,7 +119,34 @@ class TestModelMicrofluidicController(unittest.TestCase):
         self.assertEqual(self.model.data['controller'], [])
         self.assertEqual(self.model.data['server']['valve_states'], {})
 
-    @patch('plfluidics.server.model.ValveControllerRGS', autospec=True)
+    def test_driverSet_unknown_driver(self):
+        """Test driverSet with an unknown driver type."""
+        self.model.data['config'] = {
+            'config_name': 'test_config',
+            'device': 'test_device',
+            'driver': 'unknown_driver',
+            'valves': []
+        }
+        # Should not raise, but controller and valve_states should be reset
+        self.model.driverSet()
+        self.assertEqual(self.model.data['controller'], [])
+        self.assertEqual(self.model.data['server']['valve_states'], {})
+
+    def test_driverSet_malformed_valves(self):
+        """Test driverSet with malformed valve list (missing required fields)."""
+        self.model.data['config'] = {
+            'config_name': 'test_config',
+            'device': 'test_device',
+            'driver': 'rgs',
+            'valves': [
+                {'valve_alias': 'v1'}  # Missing other required fields
+            ]
+        }
+        # Should raise KeyError when accessing missing fields
+        with self.assertRaises(KeyError):
+            self.model.driverSet()
+
+    @patch('plfluidics.server.models.ValveControllerRGS', autospec=True)
     def test_openValve(self, MockValveControllerRGS):
         """Test the openValve method calls the controller and updates state."""
         # Create a mock instance of ValveControllerRGS
@@ -121,6 +172,25 @@ class TestModelMicrofluidicController(unittest.TestCase):
         mock_controller.setValveClose.assert_called_once_with('v2')
         self.assertEqual(self.model.data['server']['valve_states']['v2'], 'close')
 
+    def test_openValve_nonexistent(self):
+        """Test openValve with a valve that does not exist in valve_states."""
+        mock_controller = Mock()
+        self.model.data['controller'] = mock_controller
+        self.model.data['server']['valve_states'] = {'v1': 'closed'}
+        # Should add the new valve to valve_states as 'open'
+        self.model.openValve('v_nonexistent')
+        mock_controller.setValveOpen.assert_called_once_with('v_nonexistent')
+        self.assertEqual(self.model.data['server']['valve_states']['v_nonexistent'], 'open')
+
+    def test_closeValve_nonexistent(self):
+        """Test closeValve with a valve that does not exist in valve_states."""
+        mock_controller = Mock()
+        self.model.data['controller'] = mock_controller
+        self.model.data['server']['valve_states'] = {'v1': 'open'}
+        # Should add the new valve to valve_states as 'close'
+        self.model.closeValve('v_nonexistent')
+        mock_controller.setValveClose.assert_called_once_with('v_nonexistent')
+        self.assertEqual(self.model.data['server']['valve_states']['v_nonexistent'], 'close')
 
 
 if __name__ == '__main__':
