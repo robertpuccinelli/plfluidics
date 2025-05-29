@@ -8,14 +8,81 @@ Model:
 '''
 from time import time
 import json
-from plfluidics.valves.valve_controller import ValveControllerRGS
+from plfluidics.valves.valve_controller import ValveControllerRGS, SimulatedValveController
 
+class ModelConfig():
+    def __init__(self, options):
+        self.options = options
+        self.file_list = None
+        self.selected = None
+        self.file_name = None
+        self.error = None
+        self.preview_text = "<center>Previewed files can be edited.<br>Edited configs can be loaded without saving.</center>"
+
+    def processConfig(self, data):
+        '''Validate configuration format and extract data'''
+        formatted_data = self.lowercaseDict(data)
+        config_fields = set(self.options['config_fields'])
+        config_set = set(formatted_data)
+        if config_fields.difference(config_set):
+            raise KeyError(f'Key missing in config: {config_fields.difference(config_set)}')   
+        if config_set.difference(config_fields):
+            raise KeyError(f'Extra keys found in config: {config_set.difference(config_fields)}')
+        if formatted_data['driver'] not in self.options['driver_options']:
+            raise ValueError(f'Driver not in recognized list: {self.options['driver_options']}')
+        new_config={}
+        for field in self.options['config_fields']:
+            new_config[field] = formatted_data[field]
+        return new_config
+
+    def configLinearize(self, data):
+        # Linearize valve data from dict of dicts to list of dicts
+        self.error = None
+        try:
+            valves = data['valves']
+            valve_fields = self.options['valve_fields'].copy()
+            valve_fields.remove('valve_alias')
+            valve_data = []
+            for valve in valves:
+                try:
+                    temp_valve = {'valve_alias': valve}
+                    temp_valve = temp_valve | {key:valves[valve][key] for key in valve_fields}
+                except Exception as e:
+                    self.error = f'Field missing from valve configuration: {e}'
+                    raise KeyError(self.error)
+                valve_data.append(temp_valve)
+            data['valves'] = valve_data
+        except Exception as e:
+            if not self.error:
+                self.error = f'Error transforming config to model format. {e}'
+            raise KeyError(self.error)
+        return data
+
+    def lowercaseDict(self, data):
+        '''Change text in dict to be lowercase.'''
+        if isinstance(data,str):
+            data = json.loads(data)
+        new_dict = {}
+        for key in set(data):
+            value = data[key]
+            if isinstance(value, int):
+                new_dict[key.lower()] = value 
+            elif isinstance(value, str):
+                new_dict[key.lower()] = value.lower()
+            elif isinstance(value, bool):
+                new_dict[key.lower()] = value 
+            elif isinstance(value, dict):
+                new_dict[key.lower()] = self.lowercaseDict(value)
+            else:
+                raise ValueError(f'Config not formatted properly. Key: {key}')
+        return new_dict
+    
 
 class ModelValves():
 
     def __init__(self):
         config_fields = ['config_name','author','date', 'device','driver','valves']
-        driver_options = ['rgs', 'none']
+        driver_options = ['rgs', 'simulation','none']
         valve_fields = ['valve_alias','solenoid_number', 'default_state_closed','inv_polarity']
         valve_commands = ['open', 'close']
         self.options = {'config_fields': config_fields, 
@@ -54,27 +121,28 @@ class ModelValves():
         
     def driverSet(self):
         config = self.configGet()
+        valves = config['valves']
+        valve_list = []
+        valve_def_position = {}
+        for valve in valves:
+            v_name = valve['valve_alias']
+            v_num = valve['solenoid_number']
+            pol = valve['inv_polarity']
+            ds = valve['default_state_closed'] 
+            valve_list.append([v_num,pol,ds,v_name])
+            if ds:
+                valve_def_position[v_name] = 'open'
+            else:
+                valve_def_position[v_name] = 'closed'
+    
         if config['driver'] == 'rgs':
-            valves = config['valves']
-            valve_list = []
-            valve_def_position = {}
-            for valve in valves:
-                v_name = valve['valve_alias']
-                v_num = valve['solenoid_number']
-                pol = valve['inv_polarity']
-                ds = valve['default_state_closed'] 
-                valve_list.append([v_num,pol,ds,v_name])
-                if ds:
-                    valve_def_position[v_name] = 'open'
-                else:
-                    valve_def_position[v_name] = 'closed'
-
             self.data['controller'] = ValveControllerRGS(valve_list)
-            self.data['server']['valve_states']= valve_def_position
-
+        elif config['driver'] == 'simulation':
+            self.data['controller'] = SimulatedValveController(valve_list)
         elif config['driver'] == 'none':
             self.data['controller'] = []
-            self.data['server']['valve_states']={}
+
+        self.data['server']['valve_states']= valve_def_position            
     
     def openValve(self, valve):
         self.data['controller'].setValveOpen(valve)
@@ -85,83 +153,18 @@ class ModelValves():
         self.data['server']['valve_states'][valve] = 'close'
 
 
-class ModelConfig():
-    def __init__(self, options):
-        self.options = options
-        self.file_list = None
-        self.selected = None
-        self.error = None
-        self.preview_text = None
-
-    def processConfig(self, data):
-        '''Validate configuration format and extract data'''
-        formatted_data = self.lowercaseDict(data)
-        config_fields = set(self.options['config_fields'])
-        config_set = set(formatted_data)
-        if config_fields.difference(config_set):
-            raise KeyError(f'Key missing in config: {config_fields.difference(config_set)}')   
-        if config_set.difference(config_fields):
-            raise KeyError(f'Extra keys found in config: {config_set.difference(config_fields)}')
-        if formatted_data['driver'] not in self.options['driver_options']:
-            raise ValueError(f'Driver not in recognized list: {self.options['driver_options']}')
-        new_config={}
-        for field in self.options['config_fields']:
-            new_config[field] = formatted_data[field]
-        return new_config
-
-    def configLinearize(self, data):
-        # Linearize valve data from dict of dicts to list of dicts
-        self.error = None
-        try:
-            valves = data['valves']
-            valve_fields = self.options['valve_fields']
-            valve_fields.remove('valve_alias')
-            valve_data = []
-            for valve in valves:
-                try:
-                    temp_valve = {'valve_alias': valve}
-                    temp_valve = temp_valve | {key:valves[valve][key] for key in valve_fields}
-                except Exception as e:
-                    self.error = f'Field missing from valve configuration: {e}'
-                    raise KeyError(self.error)
-                valve_data.append(temp_valve)
-            data['valves'] = valve_data
-        except Exception as e:
-            if not self.error:
-                self.error = f'Error transforming config to model format. {e}'
-            raise KeyError(self.error)
-        return data
-
-    def lowercaseDict(self, data):
-        '''Change text in dict to be lowercase.'''
-        if isinstance(data,str):
-            data = json.loads(data)
-        new_dict = {}
-        for key in set(data):
-            value = data[key]
-            if isinstance(value, int):
-                new_dict[key.lower()] = value 
-            elif isinstance(value, str):
-                new_dict[key.lower()] = value.lower()
-            elif isinstance(value, bool):
-                new_dict[key.lower()] = value 
-            elif isinstance(value, dict):
-                new_dict[key.lower()] = self.lowercaseDict(value)
-            else:
-                raise ValueError(f'Config not formatted properly. Key: {key}')
-        return new_dict
-
-
 class ModelScript():
             
     def __init__(self, user_queue, script_queue, valve_list):
         self.operations = ['open','close', 'wait', 'pump']
         self.wait_units = ['s', 'm', 'h']
         self.pump_units = ['hz']
-        self.preview_text = []
+        self.file_list = []
+        self.preview_text = "Loaded script text is editable.<br><br>Scripts that are actively being executed cannot be edited."
         self.resetTimers()
         self.flag_wait = False
         self.state = 'idle'
+        self.selected = []
         self.script = []
         self.userQ = user_queue
         self.scriptQ = script_queue
@@ -285,7 +288,7 @@ class ModelScript():
             approx_time = 0
             line_number = 0
             new_script = []
-            input_list = input.lower().split('\r\n')  # Split script into list based on carriage returns
+            input_list = input.lower().split('\n')  # Split script into list based on new lines
             for line in input_list:
                 new_line = []
                 if line:  # Skip empty lines
@@ -335,7 +338,7 @@ class ModelScript():
 
         except Exception as e:
             raise e
-
+        
         self.script = new_script
         self.time_expected = approx_time
 

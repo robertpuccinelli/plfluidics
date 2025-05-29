@@ -3,6 +3,7 @@
 <head>
   <title>Button Example Layout</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
     <div class="container-column">
@@ -10,7 +11,7 @@
             <h1 style="margin-bottom: 0;">Microfluidic Controller</h1>
             <div class="container-row">
                 <div class="button-inactive button-active-blue" style="margin-right: auto;">&Lt; Change Config</div>
-                <h3>Button Example Layout</h3>
+                <h3>Example Layout - NOT FUNCTIONAL</h3>
                 <div class="button-inactive btn-valve-closed" style="margin-left: auto;">Reload Config &#x27F3;</div>
             </div>
         </div>

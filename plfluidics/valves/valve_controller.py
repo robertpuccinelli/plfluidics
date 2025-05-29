@@ -4,7 +4,7 @@ import ft4222
 from ft4222.SPI import Cpha, Cpol
 from ft4222.SPIMaster import Mode, Clock, SlaveSelect
 from ft4222.GPIO import Port, Dir
-from plfluidics.valves.valve import ValveRGS
+from plfluidics.valves.valve import ValveRGS, Valve
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +72,10 @@ class ValveController():
             logger.info('Valve initialized. {} : {}'.format(name,valve[0]))
             valve_number += 1
 
-    def _initValveBanks(valve_param_list):
+    def _initValveBanks(self, valve_param_list):
         pass
 
-    def _valveConstructor(addr, pol, state):
+    def _valveConstructor(self, addr, pol, state):
         pass
 
 
@@ -117,7 +117,6 @@ class ValveControllerRGS(ValveController):
     
     
 class ValveControllerFTDI(ValveController):
-
 
     def __init__():
         pass
@@ -164,3 +163,9 @@ class ValveControllerFTDI(ValveController):
 
         # Open the USB port connections
         self.loadUSB(self.serial)
+
+
+class SimulatedValveController(ValveController):
+
+    def _valveConstructor(self, addr, pol, state):
+        return Valve(addr, pol, state)

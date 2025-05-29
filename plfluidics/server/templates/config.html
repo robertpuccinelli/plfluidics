@@ -28,7 +28,7 @@
       <div class="container-column" style="max-width: 50%;">
         <h2>File Preview</h2>
         <div class="panel" id="panel-right">
-          <pre><div id="editable-panel" {% if model.selected %}contenteditable="true"{% endif %}>{% if model.preview_text %}{{model.preview_text | safe}}{% else %}<center>Previewed files can be edited.<br>Edited configs can be loaded without saving.</center>{% endif %}</div></pre>
+          <pre><div id="editable-panel" {% if model.selected %}contenteditable="true"{% endif %}>{{model.preview_text | safe}}</div></pre>
         </div>
         <form method="POST" action="/configSave">
           <div class="container-column">
@@ -47,9 +47,9 @@
       </form>
     </div>
     <div class="container-row" style="height:10%; margin-top: 30px;">
-      <div class="panel-text" id="error" style="color:hotpink; font-size:xx-large; font-weight: bolder;">
-        {% if model.error %}
-          <center>{{ model.error }}</center>
+      <div class="panel-text" id="error" style="color:rgb(255, 26, 95); font-size:xx-large; font-weight: bolder;">
+        {% if error %}
+          <center>{{ error }}</center>
         {% endif %}
       </div>
     </div>
@@ -92,7 +92,7 @@
     preview_panel.addEventListener('keydown', function(event) {
       if (event.key === 'Enter') {
       event.preventDefault();
-      document.execCommand('insertHTML', false, '\r\n');
+      document.execCommand('insertHTML', false, '\n');
       }
     });
   </script>  
