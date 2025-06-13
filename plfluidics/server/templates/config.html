@@ -6,12 +6,12 @@
 </head>
 
 <body>
-  <div class="container-column" style="max-width: 1250px; margin: 20px auto">
+  <div class="container-column" style="max-width: 1250px; margin: 0 auto">
     <a href="/" class="h1-link">Microfluidic Controller</a>
     <div class="container-row" style="height:60%;">
       <div class="container-column" style="max-width: 50%;">
         <h2>Configuration Files</h2>
-        <div class="panel" id="panel-left">
+        <div class="panel">
           <ul class="file-list" id="file-list">
             {% if model.file_list %}
               {% for item in model.file_list %}
@@ -22,18 +22,18 @@
         </div>
         <form method="POST" action="/configPreview">
             <input type="hidden" id="list_selection" name="item_selected" value="{{ model.selected }}">
-            <button type="submit"  {% if not model.selected %}disabled{% endif%} class="button-inactive {% if model.selected %}button-active-blue{% endif %}" id="preview">Preview</button>
+            <button type="submit"  {% if not model.selected %}disabled{% endif%} class="btn {% if model.selected %}btn-blue{% endif %}" id="preview" style="min-width: 200px;">Preview</button>
         </form>
       </div>
       <div class="container-column" style="max-width: 50%;">
         <h2>File Preview</h2>
-        <div class="panel" id="panel-right">
-          <pre><div id="editable-panel" {% if model.selected %}contenteditable="true"{% endif %}>{{model.preview_text | safe}}</div></pre>
+        <div class="panel" >
+          <div class="panel-text" id="panel-right" {% if model.selected %}contenteditable="plaintext-only"{% endif %}>{{model.preview_text | safe}}</div>
         </div>
         <form method="POST" action="/configSave">
           <div class="container-column">
             <input type="hidden" name="preview_content" id="save_content">
-            <button type="submit"  {% if not model.selected %}disabled{% endif%} class="button-inactive {% if model.selected %}button-active-blue{% endif %}" id="save">Save</button>
+            <button type="submit"  {% if not model.selected %}disabled{% endif%} class="btn {% if model.selected %}btn-blue{% endif %}" id="save" style="min-width: 200px;">Save</button>
           </div>
         </form>
       </div>
@@ -42,7 +42,7 @@
       <form method="POST" action="/configLoad">
         <div class="container-column">
           <input type="hidden" id="load_selection" name="item_selected" value="{{ model.selected }}">
-          <button type="submit"  {% if not model.selected %}disabled{% endif%} class="button-inactive {% if model.selected %}button-active-green{% endif %}" id="load">Load Configuration</button>
+          <button type="submit"  {% if not model.selected %}disabled{% endif%} class="btn {% if model.selected %}btn-green{% endif %}" id="load" style="min-width: 300px;">Load Configuration</button>
         </div>
       </form>
     </div>
@@ -73,9 +73,9 @@
         var_item_preview.value = clickedItem.dataset.filename;
         var_item_load.value = clickedItem.dataset.filename;
         b_preview.removeAttribute('disabled');
-        b_preview.classList.add('button-active-blue');
+        b_preview.classList.add('btn-blue');
         b_load.removeAttribute('disabled');
-        b_load.classList.add('button-active-green');
+        b_load.classList.add('btn-green');
       }
     });
 

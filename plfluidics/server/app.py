@@ -5,16 +5,29 @@ Create an application that listens for commands on a specified port. Commands ar
 """
 
 from flask import Flask
+from flask_socketio import SocketIO
 import logging
+from logging.handlers import TimedRotatingFileHandler
+import os
 from plfluidics.server.controller import MicrofluidicController
 
+cdir = os.getcwd()
+ndir = os.path.join(cdir, "logs")
+os.makedirs(ndir, exist_ok=True)
+filename = "MicrofluidicApp"
 
-logging.basicConfig(filename='purifier.log', filemode='a', format='%(asctime)s %(message)s', level=logging.INFO, datefmt='%H:%M:%S')
-log_format = '%(asctime)s - %(levelname)s - %(message)s [%(name)s]'
-
-ctrl = MicrofluidicController()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+log_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s [%(name)s]', '%H:%M:%S')
+handler_file = TimedRotatingFileHandler(filename=cdir + '/logs/' + filename + '.log', when='midnight', interval=1, backupCount=14)
+handler_file.setLevel(logging.INFO)
+handler_file.setFormatter(log_format)
+logger.addHandler(handler_file)
 
 app_server = Flask(__name__)
+socketio = SocketIO(app_server, cors_allowed_origins="*")
+ctrl = MicrofluidicController(app_server, socketio)
+
 app_server.static_folder = ctrl.templatesDir()
 app_server.template_folder = ctrl.templatesDir()
 
@@ -41,6 +54,5 @@ app_server.add_url_rule('/toggleValve', view_func=ctrl.valveToggle, methods=['PO
 app_server.add_url_rule('/closeValves', view_func=ctrl.valveCloseList, methods=['POST'])
 app_server.add_url_rule('/openValves', view_func=ctrl.valveOpenList, methods=['POST'])
 
-
 if __name__ == '__main__':
-    app_server.run(host='0.0.0.0', port=5454, debug=False)
+    socketio.run(host='0.0.0.0', port=5454, debug=False)

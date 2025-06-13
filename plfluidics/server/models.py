@@ -6,38 +6,54 @@ Model:
 - Updates state as dictated
 - Returns to controller
 '''
-from time import time
+from time import time, sleep
 import json
+import logging
 from plfluidics.valves.valve_controller import ValveControllerRGS, SimulatedValveController
 
 class ModelConfig():
-    def __init__(self, options):
+    def __init__(self, options, logger_name=None):
+        if logger_name:
+            self.logger = logging.getLogger(logger_name)
+        else:
+            self.logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
+        self.logger.setLevel(logging.DEBUG)
         self.options = options
         self.file_list = None
         self.selected = None
         self.file_name = None
         self.error = None
         self.preview_text = "<center>Previewed files can be edited.<br>Edited configs can be loaded without saving.</center>"
+        self.logger.debug('ModelConfig initialized.')
 
     def processConfig(self, data):
         '''Validate configuration format and extract data'''
+        self.logger.debug(f'Processing config data: {data}')
         formatted_data = self.lowercaseDict(data)
         config_fields = set(self.options['config_fields'])
         config_set = set(formatted_data)
         if config_fields.difference(config_set):
-            raise KeyError(f'Key missing in config: {config_fields.difference(config_set)}')   
+            msg = f'Key missing in config: {config_fields.difference(config_set)}'
+            self.logger.debug(msg)
+            raise KeyError(msg)   
         if config_set.difference(config_fields):
-            raise KeyError(f'Extra keys found in config: {config_set.difference(config_fields)}')
+            msg = f'Extra keys found in config: {config_set.difference(config_fields)}'
+            self.logger.debug(msg)
+            raise KeyError(msg)
         if formatted_data['driver'] not in self.options['driver_options']:
-            raise ValueError(f'Driver not in recognized list: {self.options['driver_options']}')
+            msg = f'Driver not in recognized list: {self.options['driver_options']}'
+            self.logger.debug(msg)
+            raise ValueError(msg)
         new_config={}
         for field in self.options['config_fields']:
             new_config[field] = formatted_data[field]
+        self.logger.info('Configuration data processed successfully.')
         return new_config
 
     def configLinearize(self, data):
         # Linearize valve data from dict of dicts to list of dicts
-        self.error = None
+        self.logger.debug(f'Linearizing config data: {data}')
+        msg = []
         try:
             valves = data['valves']
             valve_fields = self.options['valve_fields'].copy()
@@ -48,18 +64,21 @@ class ModelConfig():
                     temp_valve = {'valve_alias': valve}
                     temp_valve = temp_valve | {key:valves[valve][key] for key in valve_fields}
                 except Exception as e:
-                    self.error = f'Field missing from valve configuration: {e}'
-                    raise KeyError(self.error)
+                    msg = f'Field missing from valve configuration: {e}'
+                    raise KeyError(msg)
                 valve_data.append(temp_valve)
             data['valves'] = valve_data
         except Exception as e:
-            if not self.error:
-                self.error = f'Error transforming config to model format. {e}'
+            if not msg:
+                msg = f'Error transforming config to model format. {e}'
+            self.logger.debug(msg)
             raise KeyError(self.error)
+        self.logger.debug('Configuration data linearized successfully.')
         return data
 
     def lowercaseDict(self, data):
         '''Change text in dict to be lowercase.'''
+        self.logger.debug(f'Converting dict to lowercase format: {data}')
         if isinstance(data,str):
             data = json.loads(data)
         new_dict = {}
@@ -74,13 +93,21 @@ class ModelConfig():
             elif isinstance(value, dict):
                 new_dict[key.lower()] = self.lowercaseDict(value)
             else:
-                raise ValueError(f'Config not formatted properly. Key: {key}')
+                msg = f'Config not formatted properly. Key: {key}'
+                self.logger.debug(msg)
+                raise ValueError(msg)
+        self.logger.debug('Dict data converted to lowercase.')
         return new_dict
     
 
 class ModelValves():
 
-    def __init__(self):
+    def __init__(self, logger_name=None):
+        if logger_name:
+            self.logger = logging.getLogger(logger_name)
+        else:
+            self.logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
+        self.logger.setLevel(logging.DEBUG)
         config_fields = ['config_name','author','date', 'device','driver','valves']
         driver_options = ['rgs', 'simulation','none']
         valve_fields = ['valve_alias','solenoid_number', 'default_state_closed','inv_polarity']
@@ -91,8 +118,10 @@ class ModelValves():
                         'valve_commands': valve_commands}
         
         self.reset()
+        self.logger.debug('ModelValves initialized.')
 
     def reset(self):
+        self.logger.debug('Resetting ModelValves to default values.')
         server_status = {'status': 'no_config', 
                          'valve_states':{}}
         config_status = {'config_name':'none',
@@ -111,15 +140,17 @@ class ModelValves():
         return self.data['config']
 
     def configSet(self, new_config):
+        self.logger.debug(f'Setting new configuration: {new_config}')
         curr_config = self.configGet()
         for key in curr_config.keys():
             curr_config[key] = new_config[key]
-
         self.reset()
         self.data['config']=curr_config
         self.data['server']['status'] = 'driver_not_initialized'
+        self.logger.info(f'Configuration set: {self.data['config']['config_name']}')
         
     def driverSet(self):
+        self.logger.debug('Setting driver for valve controller.')
         config = self.configGet()
         valves = config['valves']
         valve_list = []
@@ -142,33 +173,45 @@ class ModelValves():
         elif config['driver'] == 'none':
             self.data['controller'] = []
 
-        self.data['server']['valve_states']= valve_def_position            
+        self.data['server']['valve_states']= valve_def_position
+        self.logger.info(f'Valve controller driver set: {config['driver']}')         
     
     def openValve(self, valve):
+        self.logger.debug(f'Opening valve: {valve}')
         self.data['controller'].setValveOpen(valve)
         self.data['server']['valve_states'][valve] = 'open'
+        self.logger.info(f'Valve opened: {valve}')
 
     def closeValve(self, valve):
+        self.logger.debug(f'Closing valve: {valve}')
         self.data['controller'].setValveClose(valve)
-        self.data['server']['valve_states'][valve] = 'close'
+        self.data['server']['valve_states'][valve] = 'closed'
+        self.logger.info(f'Valve closed: {valve}')
 
 
 class ModelScript():
             
-    def __init__(self, user_queue, script_queue, valve_list):
-        self.operations = ['open','close', 'wait', 'pump']
+    def __init__(self, user_queue, script_queue, valve_list, logger_name=None):
+        if logger_name:
+            self.logger = logging.getLogger(logger_name)
+        else:
+            self.logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
+        self.logger.setLevel(logging.DEBUG)
+        self.operations = ['open','close', 'wait', 'pump','pause']
         self.wait_units = ['s', 'm', 'h']
         self.pump_units = ['hz']
         self.file_list = []
-        self.preview_text = "Loaded script text is editable.<br><br>Scripts that are actively being executed cannot be edited."
+        self.flag_thread_engine = False
+        self.line_count = 0
+        self.preview_text = "Loaded script text\nis editable.\n\nScripts that are\nactively being executed\ncannot be edited."
         self.resetTimers()
-        self.flag_wait = False
         self.state = 'idle'
         self.selected = []
         self.script = []
         self.userQ = user_queue
         self.scriptQ = script_queue
         self.valve_list = valve_list
+        self.logger.debug('ModelScript initialized.')
 
     def engine(self):
         """State machine for executing scripts. Designed to be run as a threaded process.
@@ -177,16 +220,19 @@ class ModelScript():
             If idle or paused, state machine can be blocked until message is presented by user.
             This would require reworking the logic for termination on a None signal, but would increase cpu availability, if needed.
         """
-
+        self.logger.debug('Script engine initializing.')
+        self.flag_thread_engine = True
         while(1):
             next_state = self.state
             interrupt = ''
             try:
                 interrupt = self.userQ.get_nowait()
+                self.logger.debug(f'Interrupt received: {interrupt}')
             except Exception as e:
                 pass
 
             if interrupt == None:
+                self.logger.debug('Script engine terminating. Requesting controller to terminate.')
                 self.scriptQ.put(None)
                 break
 
@@ -194,36 +240,53 @@ class ModelScript():
             if self.state == 'idle':
                 if interrupt == 'start-pause':
                     if self.script:
+                        self.logger.info('Executing script.')
+                        self.line_count = 0
                         next_state = 'running'
+                        self.logger.debug(f'Changing to {next_state} from {self.state}')
             
             # PAUSED #
             if self.state == 'paused':
                 if interrupt == 'start-pause':
-                    self.time_step_next = time.time() + self.time_step_remaining
+                    self.time_step_next = time() + self.time_step_remaining
                     next_state = 'running'
+                    self.logger.debug(f'Changing to {next_state} from {self.state}')
 
                 if interrupt == 'skip':
                     self.advance()
                     if self.script != []:
                         next_state = 'paused'
                     else:
-                        next_state = 'idle'
+                        self.logger.info('End of script.')
+                        next_state = self.stop()
+                        self.logger.debug(f'Changing to {next_state} from {self.state}')
+                        break
 
                 if interrupt == 'stop':
                     next_state = self.stop()
+                    self.logger.debug(f'Changing to {next_state} from {self.state}')
+                    break
+
 
             # RUNNING #
             if self.state == 'running':
                 if interrupt == 'stop':
                     next_state = self.stop()
+                    self.logger.debug(f'Changing to {next_state} from {self.state}')
 
                 elif interrupt == 'start-pause':
                     self.time_step_remaining = self.time_step_next - time()
                     next_state = 'paused'
+                    self.logger.debug(f'Changing to {next_state} from {self.state}')
 
                 elif interrupt == 'skip':
                     self.advance()
-                    next_state = 'running'
+                    if self.script != []:
+                        next_state = self.state
+                    else:
+                        next_state = self.stop()
+                        self.logger.debug(f'Changing to {next_state} from {self.state}')
+                        break
 
                 else:
                     if not self.time_step_next:
@@ -235,40 +298,54 @@ class ModelScript():
                     if self.script != []:
                         next_state = 'running'
                     else:
+                        self.logger.info('End of script.')
                         next_state = self.stop()
-
+                        self.logger.debug(f'Changing to {next_state} from {self.state}')
+                        break
             self.state = next_state
+            sleep(.01)
+        self.flag_thread_engine = False
+        self.logger.debug('Script engine terminated.')
 
     def resetStepTimers(self):
+        self.logger.debug('Resetting step timers.')
         self.time_step_next = 0
         self.time_step_remaining = 0
 
     def resetTimers(self):
+        self.logger.debug('Resetting timers.')
         self.time_expected = 0
         self.time_accumulated = 0
         self.resetStepTimers()
 
     def advance(self):
         step = self.script.pop(0)
+        self.logger.debug(f'Removing step {step} from script queue.')
         if step[0] == 'wait':
             self.resetStepTimers()
             self.time_accumulated += step[1]
         self.line_count += 1
 
-    def execute(self, cmd):
+    def execute(self):
+        cmd = self.script[0]
+        self.logger.info(f'Line: {self.line_count} {cmd}')
         if cmd[0] == 'open':
             self.scriptQ.put(['open', cmd[1]])
-            self.flag_wait = False
-        elif cmd[0] == 'closed':
+        elif cmd[0] == 'close':
             self.scriptQ.put(['close', cmd[1]])
-            self.flag_wait = False
-        elif cmd[0] =='wait':
-            self.time_accumulated = cmd[1]
-            self.time_step_next = time() + self.time_accumulated
+        elif cmd[0] == 'wait':
+            self.time_step_next = time() + cmd[1]
+        elif cmd[0] == 'pause':
+            # Create a delay so that script does not advance
+            # this gives controller time to interrupt script engine
+            self.time_step_next = time() + time() 
+            self.scriptQ.put(['pause'])
 
     def stop(self):
+        self.logger.info('Stopping script execution.')
         self.scriptQ.put(None)
         self.resetTimers()
+        self.script=[]
         self.line_count = 1
         next_state = 'idle'
         return next_state
@@ -284,6 +361,7 @@ class ModelScript():
         6. Extracts necessary parameters (Ignores end of line comments)
         7. Returns processed script
         """
+        self.logger.debug('Processing script.')
         try:
             approx_time = 0
             line_number = 0
@@ -333,6 +411,9 @@ class ModelScript():
                                 raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `pump` unit must be one of the following - {self.pump_units}')
                             new_line = [op[0], op[1]]
 
+                        if op[0] == 'pause':
+                            new_line = [op[0]]
+
                 if new_line:
                     new_script.append(new_line)
 
@@ -342,4 +423,4 @@ class ModelScript():
         self.script = new_script
         self.time_expected = approx_time
 
-        return new_script, approx_time
+        return new_script

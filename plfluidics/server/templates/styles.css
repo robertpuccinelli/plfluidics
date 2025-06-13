@@ -4,9 +4,27 @@
 }
 body {
     display: flex;
-    max-width: 1250px;
-    height: 100vh;
+    width: 950px;
+    height: 93vh;
     margin: 0 auto;
+    font-family:'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+  }
+  .h1-link {
+    color: inherit; 
+    text-decoration: none;
+    display: block;
+    font-size: x-large;
+    margin-top: 0.67em; 
+    margin-bottom: 0.67em;
+    margin-left: 0;
+    margin-right: 0;
+    font-weight: bold;
+  }
+  .section-title{
+    background-color: #eaeaea; 
+    height: 30px; 
+    margin:0 0 10px;
+    font-size: small;
   }
   .container-row{
     display: flex;
@@ -22,48 +40,43 @@ body {
     width: 100%;
     height:100%;
   }
-  .h1-link {
-    color: inherit; 
-    text-decoration: none;
-    display: block;
-    font-size: 2em;
-    margin-top: 0.67em; 
-    margin-bottom: 0.67em;
-    margin-left: 0;
-    margin-right: 0;
-    font-weight: bold;
-  }
   .panel {
     flex: 1;
-    width: 80%;
+    width: 90%;
     height: 100%;
     padding: 10px;
     border: 1px solid #ccc;
-    overflow-y: auto;
-  }
-  #panel-left {
+    overflow-y:auto;
+    margin: 0;
     background-color: #fafafa;
   }
-  #panel-right {
-    background-color: #fafafa;
-    margin-top: 0px;
-  }
-  #panel-right:focus-within {
+  .panel:focus-within {
     outline: none;
     border-color: #0078d7;
-    box-shadow: 0 0 0 2px rgba(0, 120, 215, 0.2);
+    box-shadow: 0 0 0 2px rgba(0, 120, 215, 0.2); 
   }
-  #editable-panel {
+  .panel-text {
     width: 100%;
     height: 100%;
     border: none;
     font-size: large;
     line-height: 1.5;
+    font-family:monospace;
+    white-space: pre;
   }
-  #editable-panel:focus {
+  .panel-text:focus {
     outline: none;
-    border-color: none;
-    box-shadow: none;
+    box-shadow: none; 
+  }
+  .panel-log {
+    padding:10px;
+    height: 95%;
+    border: none;
+    font-size: large;
+    line-height: 1.5;
+    font-family:monospace;
+    white-space: pre;
+    overflow-y:scroll;  
   }
   .file-list {
     list-style: none;
@@ -75,7 +88,7 @@ body {
     cursor: pointer;
     border-bottom: 0px solid #eee;
     transition: background-color 0.3s;
-    font-size:large;
+    font-size:medium;
   }
   .file-list li:hover {
     background-color: #ddd;
@@ -84,94 +97,107 @@ body {
     background-color: #b0e0e6;
     font-weight: bold;
   }
-  panel-text{
-    flex: 1;
-    width: 75%;
-    height: 100%;
-    border: 1px solid #ccc;
-    overflow-y: auto;
-    padding: 10px;
-    font-size: 16px;
-    line-height: 1.5;
-  }
-  .button-inactive {
-    margin: 10px;
-    padding: 10px 20px;;
+  .btn {
     background-color: #ddd;
     color: white;
-    border: 1px solid #444;
-    font-size: x-large;
+    border: 1px solid #666;
+    box-shadow: inset 0px 0px 5px 0px rgba(0, 0, 0, 0.5);   
+    font-size: large;
     font-weight: bold;
-    border-radius: 4px;
-    box-shadow: inset 0px 0px 5px 0px rgba(0, 0, 0, 0.5);    
-    transition: background-color 0.2s;
     cursor: not-allowed;
-  }
-  .btn-valve{
-    margin: 3%;
-    width: 6vh;
-    height: auto;
-    aspect-ratio: 1/1;
-    box-shadow: inset 0px 0px 5px 0px rgba(0, 0, 0, 0.5);    
-    border-radius: 10px;
-    cursor: not-allowed;
-    font-size: x-large;
-    font-weight: bold;
-    text-transform: uppercase;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid #444;
-    color: white;
-}
-  .button-active-blue {
+    text-transform: uppercase;
+    align-content: center;
+    margin: 10px;
+    padding: 10px;
+    border-radius: 4px;
+  }
+  .btn-valve{
+    margin: 3%;
+    width: auto;
+    height: 50px;
+    aspect-ratio: 1/1;
+    border-radius: 10px;
+    font-size:x-large;
+    font-weight: 900;
+  }
+  .btn:hover {
+    box-shadow: inset 0px 0px 5px 2px rgba(0, 0, 0, 0.6); 
+  }
+  .btn-blue {
     background-color: #0078d7;
     cursor: pointer;
   }
-  .button-active-blue:hover {
-    box-shadow: inset 0px 0px 5px 2px rgba(0, 0, 0, 0.6); 
-  }
-  .button-active-green {
+  .btn-green {
     background-color: #46c94a;
     cursor: pointer;
   }
-  .button-active-green:hover {
-    box-shadow: inset 0px 0px 5px 2px rgba(0, 0, 0, 0.6); 
+  .btn-red {
+      background-color:#ff4931;
+      cursor: pointer;
   }
-.btn-valve-closed {
-    background-color:#ff4931;
+  .btn-orange {
+    background-color:darkorange;
     cursor: pointer;
-}
-.btn-valve-closed:hover{
-  box-shadow: inset 0px 0px 5px 2px rgba(0, 0, 0, 0.6); 
-}
-.btn-valve-open {
-    background-color:#46c94a;
-    cursor: pointer;
-}
-.btn-valve-open:hover{
-  box-shadow: inset 0px 0px 5px 2px rgba(0, 0, 0, 0.6);   
   }
-.btn-locked{
-  cursor: not-allowed;
-}
-.btn-valve-label {
-    font-size: x-large;
-    font-weight:bolder;
-    text-align: center;
-    text-transform: uppercase;
-
-}
-.btn-valve-locked {
-  cursor: not-allowed;
-}
-.btn-valve-outline{
-    margin:0.5vw;
-    width:8%;
+  .btn-locked{
+    cursor: not-allowed;
+  }
+  .btn-locked:hover {
+    box-shadow: inset 0px 0px 5px 0px rgba(0, 0, 0, 0.5);   
+  }
+  .btn-valve-label {
+      font-size: large;
+      font-weight:bolder;
+      text-align: center;
+      text-transform: uppercase;
+  }
+  .btn-valve-outline{
+    margin:0.75%;
+    width:10%;
     display: inline-flex;
     flex-direction: column;
     align-items: center;
-    border-radius: 0.5vw;
-    padding: 0.4vw;
+    justify-content: center;
+    text-align: center;
+    border-radius: 5px;
+    padding: 4px;
     transition: all 0.2s ease;
+  }
+  .btn-valve-list{
+      margin:0;
+      width: 90%;
+      height: 40px;
+      padding:0;
+  }
+  .form-valve-list{
+    margin:0;
+    width:100%;
+  }
+
+  progress {
+  /* Reset browser default appearance */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+
+  box-shadow: 1px 1px 4px rgba( 0, 0, 0, 0.2 );
+  height: 20px;
+  width: 90%;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background-color: #fafafa;
+  overflow: hidden;
 }
+  progress::-webkit-progress-value {
+    background-color: #0078d7;
+  }
+
+  progress::-webkit-progress-bar {
+    background-color: #fafafa;
+  }
+  progress::-moz-progress-bar {
+    background-color: #0078d7;
+  }

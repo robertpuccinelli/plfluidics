@@ -3,72 +3,184 @@
 <head>
   <title>Phage IP - Rev D</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
 </head>
 <body>
-    <div class="container-column">
-        <div class="container-column" style="height:15vh; justify-content: center;">
-            <a href="/" class="h1-link">Microfluidic Controller</a>
-            <div class="container-row">
-                <form method="POST" action="/changeConfig">
-                    <button type="submit"  {% if script_running %}disabled{% endif%} class="button-inactive button-active-blue {% if not script_running %}btn-valve-active{% endif%}" style="margin-left: auto;">&Lt; Change Config</button>
-                </form> 
-                <h2 style="margin: auto;">Phage IP - Rev D</h3>
-                <form method="POST" action="/reloadConfig">
-                    <button type="submit"  {% if script_running %}disabled{% endif%} class="button-inactive btn-valve-closed {% if not script_running %}btn-valve-active{% endif%}" style="margin-right: auto;">Reload Config &#x27F3;</button>
-                </form> 
-            </div>
+    <div class="container-column" style="margin: 0 auto">
+        <div class="container-row">
+            <form method="POST" action="/changeConfig">
+                <button type="submit"  {% if script_running %}disabled{% endif%} class="btn btn-blue {% if script_running %}btn-locked{% endif%}" style="margin-left: auto;">Change Config</button>
+            </form> 
+            <a href="/" class="h1-link" style="margin:auto; text-align: center;">Microfluidic Controller<br>Phage IP - Rev D</a>
+            <form method="POST" action="/reloadConfig">
+                <button type="submit"  {% if script_running %}disabled{% endif%} class="btn btn-blue {% if script_running %}btn-locked{% endif%}" style="margin-right: auto;">Reload Config</button>
+            </form> 
         </div>
         <div class="container-row" style="height: 100%;">
-            <div class="container-column" style="border: 1px solid #ccc; width:40%;  max-height: 95%; margin-right: 1vw;">
-                <div class="container-row" style="background-color: #fafafa; height: 3vh;margin-bottom:2vh;"><h2>Script Selection</h2></div>
-                    <center>
-                        <form method="POST" action="/loadScript">
-                            <select id="script_selection" name="script" style="width:80%;">
+            <div class="container-column" style="border: 1px solid #ccc; width:30%;  max-height: 95%; margin-right: 15px;">
+                <div class="container-row section-title"><h2>Script Selection</h2></div>
+                    <form method="POST" action="/loadScript" style="width:100%; display: flex; flex-direction: column; align-items: center;">
+                            <select id="script_selection" name="script" style="width:75%;">
                                 {% if script_files %}
                                     {% for item in script_files %}
                                         <option {% if script_selected == item %}selected{% endif %} data-filename="{{ item }}" >{{ item }}</option>
                                     {% endfor %}
                                 {% endif %}
                             </select>
-                            <button type="submit"  {% if script_running %}disabled{% endif%} class="button-inactive button-active-blue {% if not script_running %}btn-valve-active{% endif%}" style="margin-right: auto;">Load Script</button>
-                        </form>
-                    </center>
-                <div class="container-row" style="background-color: #fafafa; height: 3vh;margin:2vh;"><h2>Script</h2></div>      
-                <div class="panel" id="panel-right" style="max-height:40%;">
-                    <pre><div id="editable-panel" contenteditable="true">{{ script | safe }}</div></pre>
+                            <button type="submit"  {% if script_running %}disabled{% endif %} class="btn btn-blue {% if script_running %}btn-locked{% endif %}" style="margin-bottom:15px;">Load Script</button>
+                    </form>
+                <div class="container-row section-title"><h2>Script</h2></div>      
+                <div class="panel" style="max-height:40%;">
+                    <div class="panel-text" id="script-preview-text" {% if not script_running %} contenteditable="plaintext-only" {% endif %}>{{ script }}</div>
                 </div>
-                <form method="POST" id="save" action="/saveScript" style="width:100%;">
+                <form method="POST" id="save" action="/saveScript">
                     <center>
-                        <h3 style="margin-bottom: 0; margin-top:1vh;">File name:</h3>
-                        <input type="text" name="file_name" style="width: 80%; margin-bottom: 1vh; font-size:medium;" placeholder="flie_name.script">
-                        <input type="hidden" id="panel-text-field" name="panel_text">
-                        <button type="submit"  {% if script_running %}disabled{% endif%} class="button-inactive button-active-blue {% if not script_running %}btn-valve-active{% endif%}" style="margin-right: auto;">Save Script</button>
+                        <input type="text" name="file_name" style="width: 100%; margin: 10px 0 10px; font-size:medium;" placeholder="file_name">
+                        <input type="hidden" id="save-panel-text-field" name="panel_text">
+                        <button type="submit"  {% if script_running %}disabled{% endif%} class="btn btn-blue {% if script_running %}btn-locked{% endif%}" style="margin-top: 0; margin-bottom:15px;"">Save Script</button>
                     </center>
                 </form>
-                <div class="container-row" style="background-color: #fafafa; height: 3vh; margin:1vh;"><h2>Script Controls</h2></div>
+                <div class="container-row section-title"><h2>Script Controls</h2></div>
+                <div class="container-row" style="width:100%;">
+                    <form method="POST" id="play" action="/toggleScript">
+                        <input type="hidden" id="play-panel-text-field" name="panel_text">
+                        <button type="submit" {% if not script_selected %}disabled{% endif %} class="btn btn-valve {% if script_selected %}btn-green{% endif %}" style="margin: 10px;">{% if script_running %}&#x23F8;{% else %}&#x23F5;{% endif %}</button>
+                    </form>
+                    <form method="POST" action="/skipScript">
+                        <button type="submit" {% if not script_running %}disabled{% endif %} class="btn btn-valve {% if script_running %}btn-blue{% endif%}" style="margin: 10px;">&#x23ED;</button>
+                    </form>    
+                    <form method="POST" action="/stopScript">
+                        <button type="submit" {% if not script_running %}disabled{% endif %} class="btn btn-valve {% if script_running %}btn-red{% endif%}" style="margin: 10px;">&#x23F9;</button>
+                    </form>                      
+                </div>
+                <label for="step_progress" style="font-size:large; margin-top:10px;">Step time: <span id="step-time"></span></label>
+                <progress id="step_progress" value="90" max="100"></progress>
+                <label for="step_progress" style="font-size:large; margin-top:10px;">Script time: <span id="script-time"></span></label>
+                <progress id="script_progress" value="30" max="100"></progress>  
+            </div>
+            <div class="container-column" style="border: 1px solid #ccc; width:70%; max-height:95%">
+                <div class="container-row section-title"><h2>Input Control</h2></div>
                 <div class="container-row">
-                    <form method="POST" action="/toggleScript">
-                        <button type="submit"  {% if script_running %}disabled{% endif%} class="btn-valve btn-valve-open btn-valve-active" style="margin-right: 1vw;">&#x23EF;</button>
-                    </form>               
+                    <form method="POST" action="/toggleValve" class="btn-valve-outline">
+                        <label for="wash" class="btn-valve-label">Wash</label>
+                        <input type="hidden" name="valve" value="wash">
+                        <button type="submit" id="wash" {% if script_running %}disabled{% endif%} class="btn btn-valve {% if valves['wash']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['wash']=='open' %}O{% else %}C{% endif %}</button>
+                    </form>
+                    <form method="POST" action="/toggleValve" class="btn-valve-outline">
+                        <label for="bsa" class="btn-valve-label">BSA</label>
+                        <input type="hidden" name="valve" value="bsa">
+                        <button type="submit" id="bsa" {% if script_running %}disabled{% endif%} class="btn btn-valve {% if valves['bsa']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['bsa']=='open' %}O{% else %}C{% endif %}</button>
+                    </form>
+                    <form method="POST" action="/toggleValve" class="btn-valve-outline">
+                        <label for="strep" class="btn-valve-label">STREP</label>
+                        <input type="hidden" name="valve" value="strep">
+                        <button type="submit" id="strep" {% if script_running %}disabled{% endif%} class="btn btn-valve {% if valves['strep']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['strep']=='open' %}O{% else %}C{% endif %}</button>
+                    </form>
+                    <form method="POST" action="/toggleValve" class="btn-valve-outline">
+                        <label for="ag" class="btn-valve-label">A/G</label>
+                        <input type="hidden" name="valve" value="ag">
+                        <button type="submit" id="ag" {% if script_running %}disabled{% endif%} class="btn btn-valve {% if valves['ag']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['ag']=='open' %}O{% else %}C{% endif %}</button>
+                    </form>
+                    <form method="POST" action="/toggleValve" class="btn-valve-outline">
+                        <label for="ab" class="btn-valve-label">Ab</label>
+                        <input type="hidden" name="valve" value="ab">
+                        <button type="submit" id="ab" {% if script_running %}disabled{% endif%} class="btn btn-valve {% if valves['ab']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['ab']=='open' %}O{% else %}C{% endif %}</button>
+                    </form>
+                    <form method="POST" action="/toggleValve" class="btn-valve-outline">
+                        <label for="phage" class="btn-valve-label">Phage</label>
+                        <input type="hidden" name="valve" value="phage">
+                        <button type="submit" id="phage" {% if script_running %}disabled{% endif%} class="btn btn-valve {% if valves['phage']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['phage']=='open' %}O{% else %}C{% endif %}</button>
+                    </form>
+                </div>
+                <div class="container-row section-title"><h2>Flow Control</h2></div>
+                <div class="container-row">
+                    <form method="POST" action="/toggleValve" class="btn-valve-outline">
+                        <label for="waste" class="btn-valve-label">Waste</label>
+                        <input type="hidden" name="valve" value="waste">
+                        <button type="submit" id="waste" {% if script_running %}disabled{% endif%} class="btn btn-valve {% if valves['waste']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['waste']=='open' %}O{% else %}C{% endif %}</button>
+                    </form>
+                    <form method="POST" action="/toggleValve" class="btn-valve-outline">
+                        <label for="in" class="btn-valve-label">In</label>
+                        <input type="hidden" name="valve" value="in">
+                        <button type="submit" id="in" {% if script_running %}disabled{% endif%} class="btn btn-valve {% if valves['in']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['in']=='open' %}O{% else %}C{% endif %}</button>
+                    </form>
+                    <form method="POST" action="/toggleValve" class="btn-valve-outline">
+                        <label for="out" class="btn-valve-label">Out</label>
+                        <input type="hidden" name="valve" value="out">
+                        <button type="submit" id="out" {% if script_running %}disabled{% endif%} class="btn btn-valve {% if valves['out']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['out']=='open' %}O{% else %}C{% endif %}</button>
+                    </form>
+                    <form method="POST" action="/toggleValve" class="btn-valve-outline">
+                        <label for="p1" class="btn-valve-label">P1</label>
+                        <input type="hidden" name="valve" value="p1">
+                        <button type="submit" id="p1" {% if script_running %}disabled{% endif%} class="btn btn-valve {% if valves['p1']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['p1']=='open' %}O{% else %}C{% endif %}</button>
+                    </form>
+                    <form method="POST" action="/toggleValve" class="btn-valve-outline">
+                        <label for="p2" class="btn-valve-label">P2</label>
+                        <input type="hidden" name="valve" value="p2">
+                        <button type="submit" id="p2" {% if script_running %}disabled{% endif%} class="btn btn-valve {% if valves['p2']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['p2']=='open' %}O{% else %}C{% endif %}</button>
+                    </form>
+                    <form method="POST" action="/toggleValve" class="btn-valve-outline">
+                        <label for="p3" class="btn-valve-label">P3</label>
+                        <input type="hidden" name="valve" value="p3">
+                        <button type="submit" id="p3" {% if script_running %}disabled{% endif%} class="btn btn-valve {% if valves['p3']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['p3']=='open' %}O{% else %}C{% endif %}</button>
+                    </form>
+                </div>
+                <div class="container-row section-title"><h2>Utilities</h2></div>
+                <div class="container-row" style="margin: 10px;">
+                    <div class="container-column">
+                        <form method="POST" action="/closeValves" class="btn-valve-outline form-valve-list">
+                            <input type="hidden" name="valve" value="in,out">
+                            <button type="submit" id="cio" {% if script_running %}disabled{% endif%} class="btn btn-red btn-valve-list {% if script_running %}btn-locked{% endif%}">Close In/Out</button>
+                        </form>
+                        <form method="POST" action="/openValves" class="btn-valve-outline form-valve-list">
+                            <input type="hidden" name="valve" value="in,out">
+                            <button type="submit" id="oio" {% if script_running %}disabled{% endif%} class="btn btn-green btn-valve-list {% if script_running %}btn-locked{% endif%}">Open In/Out</button>
+                        </form>
+                    </div>
+                    <div class="container-column">
+                        <form method="POST" action="/closeValves" class="btn-valve-outline form-valve-list">
+                            <input type="hidden" name="valve" value="wash,bsa,strep,ag,ab,phage,waste,in,out,p1,p2,p3">
+                            <button type="submit" id="ca" {% if script_running %}disabled{% endif%} class="btn btn-red btn-valve-list {% if script_running %}btn-locked{% endif%}">Close All</button>
+                        </form>
+                        <form method="POST" action="/openValves" class="btn-valve-outline form-valve-list">
+                            <input type="hidden" name="valve" value="wash,bsa,strep,ag,ab,phage,waste,in,out,p1,p2,p3">
+                            <button type="submit" id="oa" {% if script_running %}disabled{% endif%} class="btn btn-green btn-valve-list {% if script_running %}btn-locked{% endif%}">Open All</button>
+                        </form>
+                    </div>
+                    <div class="container-column">
+                        <form method="POST" action="/closeValves" class="btn-valve-outline form-valve-list">
+                            <input type="hidden" name="valve" value="p1,p2,p3">
+                            <button type="submit" id="cp" {% if script_running %}disabled{% endif%} class="btn btn-red btn-valve-list {% if script_running %}btn-locked{% endif%}">Close Pumps</button>
+                        </form>
+                        <form method="POST" action="/openValves" class="btn-valve-outline form-valve-list">
+                            <input type="hidden" name="valve" value="p1,p2,p3">
+                            <button type="submit" id="op" {% if script_running %}disabled{% endif%} class="btn btn-green btn-valve-list {% if script_running %}btn-locked{% endif%}">Open Pumps</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="container-row section-title" style="margin-bottom: 0;"><h2>Log</h2></div>
+                <div class="panel" style="padding:0; margin: .5%; width:98.5%;">
+                    <div class="panel-log" id="logger">{{ log }}</div>
                 </div>
             </div>
-        </div>
-        <div class="panel-text" id="error" style="color:rgb(255, 26, 95); font-size:xx-large; font-weight: bolder;">
-            {% if error %}
-            <center>{{ error }}</center>
-            {% endif %}
         </div>
     </div>
 
     <script>
         const save = document.getElementById('save');
-        const script_preview = document.getElementById('editable-panel');
-        const save_preview = document.getElementById('panel-text-field');
-        const preview_panel = document.getElementById("editable-panel")
+        const script_preview = document.getElementById('script-preview-text');
+        const save_preview = document.getElementById('save-panel-text-field');
+        const play_preview = document.getElementById('play-panel-text-field');
+        const play = document.getElementById('play');
 
         save.addEventListener('submit', function(event) {
             const content = script_preview.innerHTML;
             save_preview.value = content;
+        });
+
+        play.addEventListener('submit', function(event) {
+            const content = script_preview.innerHTML;
+            play_preview.value = content;
         });
 
         preview_panel.addEventListener('keydown', function(event) {
@@ -76,6 +188,15 @@
             event.preventDefault();
             document.execCommand('insertHTML', false, '\n');
             }
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const loggerDiv = document.getElementById('logger');
+
+            // Use a small timeout to ensure rendering is complete
+            setTimeout(() => {
+                loggerDiv.scrollTo = loggerDiv.scrollHeight/2;
+            }, 0); // Or 10ms, 50ms if 0ms isn't enough
         });
     </script>
 

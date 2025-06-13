@@ -1,4 +1,5 @@
 open waste
 wait 1 s
 close waste
+pause # skip to resume
 wait 1 m
