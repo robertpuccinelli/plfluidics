@@ -50,9 +50,10 @@ app_server.add_url_rule('/toggleScript', view_func=ctrl.scriptToggle, methods=['
 app_server.add_url_rule('/skipScript', view_func=ctrl.scriptSkip, methods=['POST'])
 app_server.add_url_rule('/stopScript', view_func=ctrl.scriptStop, methods=['POST'])
 # Valves
-app_server.add_url_rule('/toggleValve', view_func=ctrl.valveToggle, methods=['POST'])
-app_server.add_url_rule('/closeValves', view_func=ctrl.valveCloseList, methods=['POST'])
-app_server.add_url_rule('/openValves', view_func=ctrl.valveOpenList, methods=['POST'])
+socketio.on_event('toggleValve', ctrl.valveToggle)
+socketio.on_event('openValves',ctrl.valveOpenList)
+socketio.on_event('closeValves', ctrl.valveCloseList)
+
 
 if __name__ == '__main__':
     socketio.run(host='0.0.0.0', port=5454, debug=False)

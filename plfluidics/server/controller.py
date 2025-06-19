@@ -72,10 +72,10 @@ class MicrofluidicController():
 
     def logEmitter(self):
         with self.app.app_context():
-            while self.flag_thread_logger:
+            while True:
                 try:
                     msg = self.logQ.get(timeout=0.5)
-                    self.socketio.emit('log_msg', {'data': msg})
+                    self.socketio.emit('log_msg', {'msg': msg})
                 except queue.Empty:
                     sleep(0.1)
 
@@ -102,7 +102,12 @@ class MicrofluidicController():
 
     def controlPage(self):
         if self.error:
-            self.logger.warning(f'{self.error}')   
+            self.logger.warning(f'{self.error}')
+        if not self.flag_thread_logger:
+            self.thread_logger = threading.Thread(target=self.logEmitter)
+            self.thread_logger.daemon = True
+            self.thread_logger.start()      
+            self.flag_thread_logger = True
         page_name = self.valve_model.data['config']['device'] + '.html'
         running = True if self.script_model.state == 'running' else False
         valves = self.valve_model.data['server']['valve_states']
@@ -212,56 +217,58 @@ class MicrofluidicController():
     #########
     # VALVE #
     #########
-
-    def valveToggle(self):
+    
+    def valveToggle(self, data):
         self.logger.debug('Toggling valve.')
         self.error = None
         try:
-            valve=request.form.get('valve')
+            valve = data.get('valve')
             if self.checkValveExists(valve):
                 curr_state = self.valve_model.data['server']['valve_states'][valve]
-                if curr_state == 'open':
-                    self.valve_model.closeValve(valve)
-                elif curr_state == 'closed':
-                    self.valve_model.openValve(valve)
+            if curr_state == 'open':
+                self.closeValve(valve)
+            elif curr_state == 'closed':
+                self.openValve(valve)
         except Exception as e:
-            self.error = f'Failed to toggle valve. {e}'
-        return self.renderPage()
+            self.logger.warning(f'Failed to toggle valve. {e}')
     
-    def valveOpenList(self):
+    def valveOpenList(self, data):
         self.logger.debug('Opening list of valves.')
         self.error = None
         try:
-            data=request.form.get('valve')
-            valves_list = data.split(',')
-            for valve in valves_list:
-                self.valve_model.openValve(valve)
+            valves = data.get('valves')
+            for valve in valves:
+                if self.checkValveExists(valve):
+                    self.openValve(valve)
         except Exception as e:
             self.error = f'Failed to open list of valves. {e}'
-        return self.renderPage()
 
-    def valveCloseList(self):
+    def valveCloseList(self,data):
         self.logger.debug('Closing list of valves.')
         self.error = None
         try:
-            data=request.form.get('valve')
-            valves_list = data.split(',')
-            for valve in valves_list:
-                self.valve_model.closeValve(valve)
+            valves = data.get('valves')
+            for valve in valves:
+                if self.checkValveExists(valve):
+                    self.closeValve(valve)
         except Exception as e:
             self.error = f'Failed to close list of valves. {e}'
-        return self.renderPage()
 
     ###################
     # VALVE UTILITIES #
     ###################
 
     def openValve(self, valve):
-        if self.checkValveExists(valve):
+        if self.valve_model.data['server']['valve_states'][valve] == 'closed':
             self.valve_model.openValve(valve)
+            if self.valve_model.data['server']['valve_states'][valve] == 'open':
+                self.socketio.emit('valve',{'action':'open','valve':valve})
+
     def closeValve(self, valve):
-        if self.checkValveExists(valve):
+        if self.valve_model.data['server']['valve_states'][valve] == 'open':
             self.valve_model.closeValve(valve)
+            if self.valve_model.data['server']['valve_states'][valve] == 'closed':
+                self.socketio.emit('valve',{'action':'close','valve':valve})
 
     def checkValveExists(self, valve):
         self.logger.debug(f'Checking existence of valve: {valve}')
@@ -306,17 +313,15 @@ class MicrofluidicController():
         return self.renderPage()
 
     def scriptToggle(self):
-        self.logger.debug('Toggling script autoplay.')
+        self.logger.info('Start/pause button pressed.')
         try:
             if not self.script_model.script:  # On 1st press: extract, process, store user text
                 data = request.form.get('panel_text').replace('\r\n', '\n')
                 self.script_model.preview_text=data
                 self.script_model.script = self.script_model.processScript(data)
-            self.logger.info('Requesting script engine to start or pause.')
             self.startPauseScriptEngine()
         except Exception as e:
             self.error = f'Error starting/pausing script. {e}'
-        return self.renderPage()
 
     def scriptSkip(self):
         self.logger.info('Requesting script engine to skip step.')
@@ -357,11 +362,10 @@ class MicrofluidicController():
                 self.thread_script_state_machine.daemon = True
                 self.thread_script_state_machine.start()
 
-            if not self.flag_thread_logger:
-                self.thread_logger = threading.Thread(target=self.logEmitter)
-                self.thread_logger.daemon = True
-                self.flag_thread_logger = True
-                self.thread_logger.start()     
+        if self.script_model.state == 'running':
+            self.socketio.emit('enable')
+        else:
+            self.socketio.emit('disable')
 
         self.logger.debug('Submitting start-pause command.')
         self.userQ.put('start-pause')

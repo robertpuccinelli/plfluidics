@@ -75,8 +75,7 @@ body {
     font-size: large;
     line-height: 1.5;
     font-family:monospace;
-    white-space: pre;
-    overflow-y:scroll;  
+    white-space: pre; 
   }
   .file-list {
     list-style: none;
@@ -115,6 +114,15 @@ body {
     border-radius: 4px;
   }
   .btn-valve{
+    margin: 3%;
+    width: auto;
+    height: 50px;
+    aspect-ratio: 1/1;
+    border-radius: 10px;
+    font-size:x-large;
+    font-weight: 900;
+  }
+  .btn-media{
     margin: 3%;
     width: auto;
     height: 50px;
@@ -171,6 +179,8 @@ body {
       width: 90%;
       height: 40px;
       padding:0;
+  }
+  .script-disable{
   }
   .form-valve-list{
     margin:0;
