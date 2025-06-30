@@ -1,5 +1,6 @@
 open waste
-wait 1 s
+wait 5 s
 close waste
-pause # skip to resume
+pause # press play to resume
 wait 1 m
+wait 1 h

@@ -74,10 +74,10 @@ class MicrofluidicController():
         with self.app.app_context():
             while True:
                 try:
-                    msg = self.logQ.get(timeout=0.5)
+                    msg = self.logQ.get(timeout=0.01)
                     self.socketio.emit('log_msg', {'msg': msg})
                 except queue.Empty:
-                    sleep(0.1)
+                    sleep(0.04)
 
     ################
     # PAGE SERVICE #
@@ -117,6 +117,7 @@ class MicrofluidicController():
                                script_files = self.script_model.file_list,
                                script_selected = self.script_model.selected,
                                script_running = running, 
+                               script_processed = True if self.script_model.script else False,
                                script = self.script_model.preview_text,
                                log = self.log_var.getvalue())
 
@@ -213,6 +214,8 @@ class MicrofluidicController():
         except Exception as e:
             self.error = e
         return file_list
+    
+    
 
     #########
     # VALVE #
@@ -312,24 +315,27 @@ class MicrofluidicController():
             self.error = f'Error saving script. {e}'
         return self.renderPage()
 
-    def scriptToggle(self):
-        self.logger.info('Start/pause button pressed.')
+    def scriptToggle(self, data):
+        if self.script_model.state == 'running':
+            self.logger.info('User request: pause')
+        else:
+            self.logger.info('User request: play')
         try:
             if not self.script_model.script:  # On 1st press: extract, process, store user text
-                data = request.form.get('panel_text').replace('\r\n', '\n')
-                self.script_model.preview_text=data
-                self.script_model.script = self.script_model.processScript(data)
+                text = data.get('panel_text').replace('\r\n', '\n')
+                self.script_model.preview_text=text
+                self.script_model.script = self.script_model.processScript(text)
             self.startPauseScriptEngine()
         except Exception as e:
-            self.error = f'Error starting/pausing script. {e}'
+            self.logger.warning = f'Error starting/pausing script. {e}'
 
     def scriptSkip(self):
-        self.logger.info('Requesting script engine to skip step.')
+        self.logger.info('User request: skip')
         self.skipScriptEngine()
         return self.renderPage()
 
     def scriptStop(self):
-        self.logger.info('Requesting script engine to terminate.')
+        self.logger.info('User request: stop')
         self.stopScriptEngine()
         return self.renderPage()
 
@@ -352,20 +358,22 @@ class MicrofluidicController():
             # Check to see if threads for script management are running
             if not self.flag_thread_processor:
                 self.logger.debug('Starting thread for interfacing with script engine.')
+                self.userQ.queue.clear()
                 self.thread_script_processor = threading.Thread(target=self.scriptProcessor)
                 self.thread_script_processor.daemon = True
                 self.thread_script_processor.start()
 
             if not self.script_model.flag_thread_engine:
                 self.logger.debug('Starting thread for script engine.')
+                self.scriptQ.queue.clear()
                 self.thread_script_state_machine = threading.Thread(target=self.script_model.engine)
                 self.thread_script_state_machine.daemon = True
                 self.thread_script_state_machine.start()
 
         if self.script_model.state == 'running':
-            self.socketio.emit('enable')
+            self.socketio.emit('pause')
         else:
-            self.socketio.emit('disable')
+            self.socketio.emit('play')
 
         self.logger.debug('Submitting start-pause command.')
         self.userQ.put('start-pause')
@@ -373,23 +381,19 @@ class MicrofluidicController():
     def skipScriptEngine(self):
         """While script is loaded, skip the next uncompleted step."""
         if self.script_model:
-            if self.script_model.state != 'idle':
-                self.logger.debug('Submitting skip command.')
-                self.userQ.put('skip')
+            self.logger.debug('Submitting skip command.')
+            self.userQ.put('skip')
 
     def stopScriptEngine(self):
         """Manually terminate script state machine and processor threads"""
         if self.script_model.script:
-            if self.script_model.state != 'idle':
-                self.logger.debug('Submitting stop command.')
-                self.userQ.put('stop')
-            self.logger.debug('Submitting termination signal.')
-            self.userQ.put(None)
-            self.script_state_machine.join()
+            self.logger.debug('Submitting stop command.')
+            self.userQ.put('stop')
+            self.thread_script_state_machine.join()
             self.logger.debug('Script engine thread terminated.')
-            self.script_processor.join()
+            self.thread_script_processor.join()
             self.logger.debug('Controller script interface terminated.')
-            self.script_model.script = []
+
 
     #########################
     # CTRL SCRIPT PROCESSOR #
@@ -403,9 +407,10 @@ class MicrofluidicController():
         """
         self.logger.debug('Script processor initializing.')
         self.flag_thread_processor = True
-        while(self.script_model.script):
+        while(True):
             try:
                 msg = self.scriptQ.get_nowait()
+                self.scriptQ.task_done()
                 if msg is None:
                     # Terminate loop
                     break
@@ -416,16 +421,21 @@ class MicrofluidicController():
                     self.closeValve(msg[1])
                     self.socketio.emit('valve',{'name':msg[1], 'state':'c'})
                 elif msg[0] == 'pause':
-                    self.startPauseScriptEngine()
-                    self.socketio.emit('status',{'event':'pause'})
-                sleep(.01)
+                    self.socketio.emit('pause')
+                elif msg[0] == 't_e':
+                    self.socketio.emit('time',{'event':'t_e','value':msg[1]})
+                elif msg[0] == 't_a':
+                    self.socketio.emit('time',{'event':'t_a','remaining':msg[1], 'duration':msg[2]})
+                elif msg[0] == 't_n':
+                    self.socketio.emit('time',{'event':'t_n','value':msg[1]})
+                elif msg[0] == 't_r':
+                    self.socketio.emit('time',{'event':'t_r','remaining':msg[1], 'duration':msg[2]})
 
             except queue.Empty as e:
-                pass
+                sleep(.001)
         self.flag_thread_processor = False
-        self.flag_thread_logger = False
-        self.socketio.emit('status',{'event': 'end'})
         self.logger.debug('Script processor terminated.')
+        self.socketio.emit('stop')
 
 class QueueLogHandler(logging.Handler):
     def __init__(self, log_queue):

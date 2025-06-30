@@ -202,7 +202,8 @@ class ModelScript():
         self.pump_units = ['hz']
         self.file_list = []
         self.flag_thread_engine = False
-        self.line_count = 0
+        self.flag_pause = False
+        self.line_count = 1
         self.preview_text = "Loaded script text\nis editable.\n\nScripts that are\nactively being executed\ncannot be edited."
         self.resetTimers()
         self.state = 'idle'
@@ -227,32 +228,36 @@ class ModelScript():
             interrupt = ''
             try:
                 interrupt = self.userQ.get_nowait()
+                self.userQ.task_done()
                 self.logger.debug(f'Interrupt received: {interrupt}')
             except Exception as e:
                 pass
-
-            if interrupt == None:
-                self.logger.debug('Script engine terminating. Requesting controller to terminate.')
-                self.scriptQ.put(None)
-                break
 
             # IDLE #
             if self.state == 'idle':
                 if interrupt == 'start-pause':
                     if self.script:
                         self.logger.info('Executing script.')
-                        self.line_count = 0
+                        self.scriptQ.put(['t_e',self.time_expected])
+                        self.line_count = 1
                         next_state = 'running'
                         self.logger.debug(f'Changing to {next_state} from {self.state}')
+
+                if self.script == []:
+                    self.scriptQ.put(None)  # Terminate controller thread
+                    break
             
             # PAUSED #
             if self.state == 'paused':
                 if interrupt == 'start-pause':
-                    self.time_step_next = time() + self.time_step_remaining
+                    if self.time_step_next:
+                        self.time_step_next = self.time_step_remaining + time()
                     next_state = 'running'
+                    self.flag_pause = False
                     self.logger.debug(f'Changing to {next_state} from {self.state}')
 
                 if interrupt == 'skip':
+                    self.logger.info(f'Skipping line: {self.line_count} {self.script[0]} ')
                     self.advance()
                     if self.script != []:
                         next_state = 'paused'
@@ -260,12 +265,10 @@ class ModelScript():
                         self.logger.info('End of script.')
                         next_state = self.stop()
                         self.logger.debug(f'Changing to {next_state} from {self.state}')
-                        break
 
                 if interrupt == 'stop':
                     next_state = self.stop()
                     self.logger.debug(f'Changing to {next_state} from {self.state}')
-                    break
 
 
             # RUNNING #
@@ -280,28 +283,37 @@ class ModelScript():
                     self.logger.debug(f'Changing to {next_state} from {self.state}')
 
                 elif interrupt == 'skip':
+                    self.logger.info(f'Skipping line: {self.line_count} {self.script[0]} ')
                     self.advance()
                     if self.script != []:
                         next_state = self.state
                     else:
                         next_state = self.stop()
                         self.logger.debug(f'Changing to {next_state} from {self.state}')
-                        break
 
                 else:
                     if not self.time_step_next:
                         self.execute()
 
-                    if self.time_step_next < time():
+                    t_r = self.time_step_next - time()
+                    if t_r < 0:
                         self.advance()
+                    else: # Increment progress bar on interface every second
+                        t_r_new = round(t_r)
+                        if t_r_new != self.t_r_old:
+                            self.scriptQ.put(['t_r', t_r_new, self.time_step_duration - t_r_new])
+                            self.scriptQ.put(['t_a',self.time_expected - self.time_accumulated - self.time_step_duration + t_r_new, self.time_accumulated + self.time_step_duration - t_r_new])
+                            self.t_r_old = t_r_new
 
                     if self.script != []:
-                        next_state = 'running'
+                        if self.flag_pause == True:
+                            next_state = 'paused'
+                        else:
+                            next_state = 'running'
                     else:
                         self.logger.info('End of script.')
                         next_state = self.stop()
                         self.logger.debug(f'Changing to {next_state} from {self.state}')
-                        break
             self.state = next_state
             sleep(.01)
         self.flag_thread_engine = False
@@ -311,6 +323,8 @@ class ModelScript():
         self.logger.debug('Resetting step timers.')
         self.time_step_next = 0
         self.time_step_remaining = 0
+        self.time_step_duration = 0
+        self.t_r_old = 0
 
     def resetTimers(self):
         self.logger.debug('Resetting timers.')
@@ -324,6 +338,10 @@ class ModelScript():
         if step[0] == 'wait':
             self.resetStepTimers()
             self.time_accumulated += step[1]
+            self.scriptQ.put(['t_n', 0])
+            self.scriptQ.put(['t_r',0,0])
+            self.scriptQ.put(['t_a',self.time_expected - self.time_accumulated,self.time_accumulated])
+
         self.line_count += 1
 
     def execute(self):
@@ -334,17 +352,20 @@ class ModelScript():
         elif cmd[0] == 'close':
             self.scriptQ.put(['close', cmd[1]])
         elif cmd[0] == 'wait':
-            self.time_step_next = time() + cmd[1]
+            self.time_step_duration = cmd[1]
+            self.time_step_next = time() + self.time_step_duration
+            self.scriptQ.put(['t_n',cmd[1]])
         elif cmd[0] == 'pause':
             # Create a delay so that script does not advance
             # this gives controller time to interrupt script engine
-            self.time_step_next = time() + time() 
+            self.flag_pause = True
             self.scriptQ.put(['pause'])
+
 
     def stop(self):
         self.logger.info('Stopping script execution.')
-        self.scriptQ.put(None)
         self.resetTimers()
+        self.flag_pause = False
         self.script=[]
         self.line_count = 1
         next_state = 'idle'

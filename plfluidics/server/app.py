@@ -19,7 +19,8 @@ filename = "MicrofluidicApp"
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 log_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s [%(name)s]', '%H:%M:%S')
-handler_file = TimedRotatingFileHandler(filename=cdir + '/logs/' + filename + '.log', when='midnight', interval=1, backupCount=14)
+log_loc = cdir + '/logs/'
+handler_file = TimedRotatingFileHandler(filename=log_loc + filename + '.log', when='midnight', interval=1, backupCount=14)
 handler_file.setLevel(logging.INFO)
 handler_file.setFormatter(log_format)
 logger.addHandler(handler_file)
@@ -27,6 +28,7 @@ logger.addHandler(handler_file)
 app_server = Flask(__name__)
 socketio = SocketIO(app_server, cors_allowed_origins="*")
 ctrl = MicrofluidicController(app_server, socketio)
+ctrl.logger.info(f'Log file location: {log_loc}')
 
 app_server.static_folder = ctrl.templatesDir()
 app_server.template_folder = ctrl.templatesDir()
@@ -46,8 +48,9 @@ app_server.add_url_rule('/reloadConfig', view_func=ctrl.configReload, methods=['
 # Script
 app_server.add_url_rule('/loadScript', view_func=ctrl.scriptLoad, methods=['POST'])
 app_server.add_url_rule('/saveScript', view_func=ctrl.scriptSave, methods=['POST'])
-app_server.add_url_rule('/toggleScript', view_func=ctrl.scriptToggle, methods=['POST'])
-app_server.add_url_rule('/skipScript', view_func=ctrl.scriptSkip, methods=['POST'])
+# Media
+socketio.on_event('play-pause',ctrl.scriptToggle)
+socketio.on_event('skip', ctrl.scriptSkip)
 app_server.add_url_rule('/stopScript', view_func=ctrl.scriptStop, methods=['POST'])
 # Valves
 socketio.on_event('toggleValve', ctrl.valveToggle)
