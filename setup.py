@@ -15,7 +15,9 @@ setuptools.setup(
     include_package_data=True,
     install_requires=[
         'flask',
+        'flask-socketio',
         'ftd2xx',
+        'waitress',
     ],
     test_suite="tests",
 )

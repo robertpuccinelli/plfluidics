@@ -89,6 +89,12 @@ class ValveControllerRGS(ValveController):
     def __init__(self, valve_param_list):
         super().__init__(valve_param_list)
 
+    def __del__(self):
+        try:
+            self.device.close()
+        except Exception:
+            pass
+
     def _initValveBanks(self, valve_param_list):
         self.device=ftd2xx.open(0) # Grab first device, not ideal
         a=0
