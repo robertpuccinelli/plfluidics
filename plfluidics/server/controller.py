@@ -109,14 +109,13 @@ class MicrofluidicController():
             self.thread_logger.start()      
             self.flag_thread_logger = True
         page_name = self.valve_model.data['config']['device'] + '.html'
-        running = True if self.script_model.state == 'running' else False
         valves = self.valve_model.data['server']['valve_states']
         self.logger.debug(f'Control page: {page_name}')
         return render_template(page_name, 
                                valves = valves,
                                script_files = self.script_model.file_list,
                                script_selected = self.script_model.selected,
-                               script_running = running, 
+                               script_state = self.script_model.state,
                                script_processed = True if self.script_model.script else False,
                                script = self.script_model.preview_text,
                                log = self.log_var.getvalue())
@@ -339,7 +338,6 @@ class MicrofluidicController():
         self.stopScriptEngine()
         return self.renderPage()
 
-
     ####################
     # SCRIPT UTILITIES #
     ####################
@@ -395,6 +393,9 @@ class MicrofluidicController():
             self.logger.debug('Controller script interface terminated.')
 
 
+    def poll(self):
+        self.userQ.put('poll')
+
     #########################
     # CTRL SCRIPT PROCESSOR #
     #########################
@@ -430,6 +431,8 @@ class MicrofluidicController():
                     self.socketio.emit('time',{'event':'t_n','value':msg[1]})
                 elif msg[0] == 't_r':
                     self.socketio.emit('time',{'event':'t_r','remaining':msg[1], 'duration':msg[2]})
+                elif msg[0] == 'line':
+                    self.socketio.emit('line',{'index':msg[1]})
 
             except queue.Empty as e:
                 sleep(.001)

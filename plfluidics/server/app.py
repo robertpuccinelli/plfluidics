@@ -3,6 +3,8 @@ Purpose:
 
 Create an application that listens for commands on a specified port. Commands are used to operate a microfluidic controller or provide status information.
 """
+import eventlet
+eventlet.monkey_patch()
 
 from flask import Flask
 from flask_socketio import SocketIO
@@ -10,6 +12,7 @@ import logging
 from logging.handlers import TimedRotatingFileHandler
 import os
 from plfluidics.server.controller import MicrofluidicController
+
 
 socketio = SocketIO()
 
@@ -29,7 +32,8 @@ def createApp():
     logger.addHandler(handler_file)
 
     app_server = Flask(__name__)
-    socketio.init_app(app_server, cors_allowed_origins="*", async_mode='threading')
+    socketio.init_app(app_server, cors_allowed_origins="*", async_mode='eventlet')
+#    socketio.init_app(app_server, cors_allowed_origins="*", async_mode='threading')
     ctrl = MicrofluidicController(app_server, socketio)
     ctrl.logger.info(f'Log file location: {log_loc}')
 
@@ -52,6 +56,7 @@ def createApp():
     app_server.add_url_rule('/loadScript', view_func=ctrl.scriptLoad, methods=['POST'])
     app_server.add_url_rule('/saveScript', view_func=ctrl.scriptSave, methods=['POST'])
     # Media
+    socketio.on_event('poll', ctrl.poll)
     socketio.on_event('play-pause',ctrl.scriptToggle)
     socketio.on_event('skip', ctrl.scriptSkip)
     app_server.add_url_rule('/stopScript', view_func=ctrl.scriptStop, methods=['POST'])
@@ -62,7 +67,9 @@ def createApp():
 
     return app_server
 
-
-if __name__ == '__main__':
+def appRun():
     app = createApp()
     socketio.run(app, host='0.0.0.0', port='5454', debug=False)
+
+if __name__ == '__main__':
+    appRun()

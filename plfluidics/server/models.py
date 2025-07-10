@@ -240,6 +240,7 @@ class ModelScript():
                         self.logger.info('Executing script.')
                         self.scriptQ.put(['t_e',self.time_expected])
                         self.line_count = 1
+                        self.scriptQ.put(['line', self.line_count])
                         next_state = 'running'
                         self.logger.debug(f'Changing to {next_state} from {self.state}')
 
@@ -256,7 +257,7 @@ class ModelScript():
                     self.flag_pause = False
                     self.logger.debug(f'Changing to {next_state} from {self.state}')
 
-                if interrupt == 'skip':
+                elif interrupt == 'skip':
                     self.logger.info(f'Skipping line: {self.line_count} {self.script[0]} ')
                     self.advance()
                     if self.script != []:
@@ -266,10 +267,17 @@ class ModelScript():
                         next_state = self.stop()
                         self.logger.debug(f'Changing to {next_state} from {self.state}')
 
-                if interrupt == 'stop':
+                elif interrupt == 'stop':
                     next_state = self.stop()
                     self.logger.debug(f'Changing to {next_state} from {self.state}')
 
+                elif interrupt == 'poll':
+                    self.scriptQ.put(['line', self.line_count])
+                    self.scriptQ.put(['t_e',self.time_expected])
+                    self.scriptQ.put(['t_n',self.time_step_duration])
+                    t_r = round(self.time_step_remaining)
+                    self.scriptQ.put(['t_r', t_r, self.time_step_duration - t_r])
+                    self.scriptQ.put(['t_a',self.time_expected - self.time_accumulated - self.time_step_duration + t_r, self.time_accumulated + self.time_step_duration - t_r])
 
             # RUNNING #
             if self.state == 'running':
@@ -290,6 +298,15 @@ class ModelScript():
                     else:
                         next_state = self.stop()
                         self.logger.debug(f'Changing to {next_state} from {self.state}')
+
+                elif interrupt == 'poll':
+                    self.scriptQ.put(['line', self.line_count])
+                    self.scriptQ.put(['t_e',self.time_expected])
+                    self.scriptQ.put(['t_n',self.time_step_duration])
+                    t_r = round(self.time_step_next - time())
+                    self.scriptQ.put(['t_r', t_r, self.time_step_duration - t_r])
+                    self.scriptQ.put(['t_a',self.time_expected - self.time_accumulated - self.time_step_duration + t_r, self.time_accumulated + self.time_step_duration - t_r])
+
 
                 else:
                     if not self.time_step_next:
@@ -343,6 +360,7 @@ class ModelScript():
             self.scriptQ.put(['t_a',self.time_expected - self.time_accumulated,self.time_accumulated])
 
         self.line_count += 1
+        self.scriptQ.put(['line', self.line_count])
 
     def execute(self):
         cmd = self.script[0]
@@ -354,7 +372,7 @@ class ModelScript():
         elif cmd[0] == 'wait':
             self.time_step_duration = cmd[1]
             self.time_step_next = time() + self.time_step_duration
-            self.scriptQ.put(['t_n',cmd[1]])
+            self.scriptQ.put(['t_n',self.time_step_duration])
         elif cmd[0] == 'pause':
             # Create a delay so that script does not advance
             # this gives controller time to interrupt script engine

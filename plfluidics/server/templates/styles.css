@@ -180,6 +180,14 @@ body {
   }
   .script-disable{
   }
+
+  .script-line {
+      display: block;
+  }
+  .script-highlight{
+    background-color: #b0e0e6;
+  }
+
   .form-valve-list{
     margin:0;
     width:100%;

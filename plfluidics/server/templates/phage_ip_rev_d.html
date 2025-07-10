@@ -9,11 +9,11 @@
     <div class="container-column" style="margin: 0 auto">
         <div class="container-row">
             <form method="POST" action="/changeConfig">
-                <button type="submit"  {% if script_running %}disabled{% endif%} class="btn script-disable  btn-blue {% if script_running %}btn-locked{% endif%}" style="margin-left: auto;">Change Config</button>
+                <button type="submit"  class="btn script-disable  btn-blue" style="margin-left: auto;">Change Config</button>
             </form> 
             <a href="/" class="h1-link" style="margin:auto; text-align: center;">Microfluidic Controller<br>Phage IP - Rev D</a>
             <form method="POST" action="/reloadConfig">
-                <button type="submit"  {% if script_running %}disabled{% endif%} class="btn script-disable  btn-blue {% if script_running %}btn-locked{% endif%}" style="margin-right: auto;">Reload Config</button>
+                <button type="submit"  class="btn script-disable  btn-blue" style="margin-right: auto;">Reload Config</button>
             </form> 
         </div>
         <div class="container-row" style="height: 90vh;">
@@ -27,23 +27,23 @@
                                     {% endfor %}
                                 {% endif %}
                             </select>
-                            <button type="submit"  {% if script_running %}disabled{% endif %} class="btn script-disable  btn-blue {% if script_running %}btn-locked{% endif %}" style="margin-bottom:15px;">Load Script</button>
+                            <button type="submit" class="btn script-disable  btn-blue" style="margin-bottom:15px;">Load Script</button>
                     </form>
                 <div class="container-row section-title"><h2>Script</h2></div>      
                 <div class="panel" style="max-height:40%;">
-                    <div class="panel-text" id="script-preview-text" {% if not script_running %} contenteditable="plaintext-only" {% endif %}>{{ script }}</div>
+                    <div class="panel-text" id="script-preview-text" contenteditable="plaintext-only">{{ script }}</div>
                 </div>
                 <form method="POST" id="save" action="/saveScript">
                     <center>
                         <input type="text" name="file_name" style="width: 100%; margin: 10px 0 10px; font-size:medium;" placeholder="file_name">
                         <input type="hidden" id="save-panel-text-field" name="panel_text">
-                        <button type="submit"  {% if script_running %}disabled{% endif%} class="btn script-disable  btn-blue {% if script_running %}btn-locked{% endif%}" style="margin-top: 0; margin-bottom:15px;"">Save Script</button>
+                        <button type="submit"  class="btn script-disable  btn-blue" style="margin-top: 0; margin-bottom:15px;"">Save Script</button>
                     </center>
                 </form>
                 <div class="container-row section-title"><h2>Script Controls</h2></div>
                 <div class="container-row" style="width:100%;">
                     <div>
-                        <button onclick="playPause()" id="play_button" {% if not script_selected %}disabled{% endif %} class="btn btn-valve {% if script_selected %}btn-green{% endif %}" style="margin: 10px;">{% if script_running %}&#x23F8;{% else %}&#x23F5;{% endif %}</button>
+                        <button onclick="playPause()" id="play_button" {% if not script_selected %}disabled{% endif %} class="btn btn-valve {% if script_selected %}btn-green{% endif %}" style="margin: 10px;">&#x23F5;</button>
                     </div>
                     <div>
                         <button onclick="skip()" id="skip_button" {% if not script_processed %}disabled{% endif %} class="btn btn-valve {% if script_processed %}btn-blue{% endif%}" style="margin: 10px;">&#x23ED;</button>
@@ -62,80 +62,80 @@
                 <div class="container-row">
                     <div class="btn-valve-outline">
                         <label for="wash" class="btn-valve-label">Wash</label>
-                        <button onclick="toggleValve(this)" id="wash" {% if script_running %}disabled{% endif%} class="btn script-disable  btn-valve {% if valves['wash']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['wash']=='open' %}O{% else %}C{% endif %}</button>
+                        <button onclick="toggleValve(this)" id="wash"  class="btn script-disable  btn-valve {% if valves['wash']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['wash']=='open' %}O{% else %}C{% endif %}</button>
                     </div>
                     <div class="btn-valve-outline">
                         <label for="bsa" class="btn-valve-label">BSA</label>
-                        <button onclick="toggleValve(this)" id="bsa" {% if script_running %}disabled{% endif%} class="btn script-disable  btn-valve {% if valves['bsa']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['bsa']=='open' %}O{% else %}C{% endif %}</button>
+                        <button onclick="toggleValve(this)" id="bsa" class="btn script-disable  btn-valve {% if valves['bsa']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['bsa']=='open' %}O{% else %}C{% endif %}</button>
                     </div>
                     <div class="btn-valve-outline">
                         <label for="strep" class="btn-valve-label">Strep</label>
-                        <button onclick="toggleValve(this)" id="strep" {% if script_running %}disabled{% endif%} class="btn script-disable  btn-valve {% if valves['strep']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['strep']=='open' %}O{% else %}C{% endif %}</button>
+                        <button onclick="toggleValve(this)" id="strep" class="btn script-disable  btn-valve {% if valves['strep']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['strep']=='open' %}O{% else %}C{% endif %}</button>
                     </div>
                     <div class="btn-valve-outline">
                         <label for="ag" class="btn-valve-label">A/G</label>
-                        <button onclick="toggleValve(this)" id="ag" {% if script_running %}disabled{% endif%} class="btn script-disable  btn-valve {% if valves['ag']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['ag']=='open' %}O{% else %}C{% endif %}</button>
+                        <button onclick="toggleValve(this)" id="ag" class="btn script-disable  btn-valve {% if valves['ag']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['ag']=='open' %}O{% else %}C{% endif %}</button>
                     </div>
                     <div class="btn-valve-outline">
                         <label for="ab" class="btn-valve-label">Ab</label>
-                        <button onclick="toggleValve(this)" id="ab" {% if script_running %}disabled{% endif%} class="btn script-disable  btn-valve {% if valves['ab']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['ab']=='open' %}O{% else %}C{% endif %}</button>
+                        <button onclick="toggleValve(this)" id="ab" class="btn script-disable  btn-valve {% if valves['ab']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['ab']=='open' %}O{% else %}C{% endif %}</button>
                     </div>
                     <div class="btn-valve-outline">
                         <label for="phage" class="btn-valve-label">Phage</label>
-                        <button onclick="toggleValve(this)" id="phage" {% if script_running %}disabled{% endif%} class="btn script-disable  btn-valve {% if valves['phage']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['phage']=='open' %}O{% else %}C{% endif %}</button>
+                        <button onclick="toggleValve(this)" id="phage" class="btn script-disable  btn-valve {% if valves['phage']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['phage']=='open' %}O{% else %}C{% endif %}</button>
                     </div>
                 </div>
                 <div class="container-row section-title"><h2>Flow Control</h2></div>
                 <div class="container-row">
                     <div class="btn-valve-outline">
                         <label for="waste" class="btn-valve-label">Waste</label>
-                        <button onclick="toggleValve(this)" id="waste" {% if script_running %}disabled{% endif%} class="btn script-disable  btn-valve {% if valves['waste']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['waste']=='open' %}O{% else %}C{% endif %}</button>
+                        <button onclick="toggleValve(this)" id="waste" class="btn script-disable  btn-valve {% if valves['waste']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['waste']=='open' %}O{% else %}C{% endif %}</button>
                     </div>
                     <div class="btn-valve-outline">
                         <label for="in" class="btn-valve-label">In</label>
-                        <button onclick="toggleValve(this)" id="in" {% if script_running %}disabled{% endif%} class="btn script-disable  btn-valve {% if valves['in']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['in']=='open' %}O{% else %}C{% endif %}</button>
+                        <button onclick="toggleValve(this)" id="in" class="btn script-disable  btn-valve {% if valves['in']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['in']=='open' %}O{% else %}C{% endif %}</button>
                     </div>
                     <div class="btn-valve-outline">
                         <label for="out" class="btn-valve-label">Out</label>
-                        <button onclick="toggleValve(this)" id="out" {% if script_running %}disabled{% endif%} class="btn script-disable  btn-valve {% if valves['out']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['out']=='open' %}O{% else %}C{% endif %}</button>
+                        <button onclick="toggleValve(this)" id="out" class="btn script-disable  btn-valve {% if valves['out']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['out']=='open' %}O{% else %}C{% endif %}</button>
                     </div>
                     <div class="btn-valve-outline">
                         <label for="p1" class="btn-valve-label">P1</label>
-                        <button onclick="toggleValve(this)" id="p1" {% if script_running %}disabled{% endif%} class="btn script-disable  btn-valve {% if valves['p1']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['p1']=='open' %}O{% else %}C{% endif %}</button>
+                        <button onclick="toggleValve(this)" id="p1" class="btn script-disable  btn-valve {% if valves['p1']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['p1']=='open' %}O{% else %}C{% endif %}</button>
                     </div>
                     <div class="btn-valve-outline">
                         <label for="p2" class="btn-valve-label">P2</label>
-                        <button onclick="toggleValve(this)" id="p2" {% if script_running %}disabled{% endif%} class="btn script-disable  btn-valve {% if valves['p2']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['p2']=='open' %}O{% else %}C{% endif %}</button>
+                        <button onclick="toggleValve(this)" id="p2" class="btn script-disable  btn-valve {% if valves['p2']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['p2']=='open' %}O{% else %}C{% endif %}</button>
                     </div>
                     <div class="btn-valve-outline">
                         <label for="p3" class="btn-valve-label">P3</label>
-                        <button onclick="toggleValve(this)" id="p3" {% if script_running %}disabled{% endif%} class="btn script-disable  btn-valve {% if valves['p3']=='open' %}btn-green {% else %}btn-red{% endif %} {% if script_running %}btn-locked{% endif%}">{% if valves['p3']=='open' %}O{% else %}C{% endif %}</button>
+                        <button onclick="toggleValve(this)" id="p3" class="btn script-disable  btn-valve {% if valves['p3']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['p3']=='open' %}O{% else %}C{% endif %}</button>
                     </div>
                 </div>
                 <div class="container-row section-title"><h2>Utilities</h2></div>
                 <div class="container-row" style="margin: 10px;">
                     <div class="container-column">
                         <div class="btn-valve-outline form-valve-list">
-                            <button onclick="closeValves(this)" data-list='["in","out"]' id="cio" {% if script_running %}disabled{% endif%} class="btn script-disable  btn-red btn-valve-list {% if script_running %}btn-locked{% endif%}">Close In/Out</button>
+                            <button onclick="closeValves(this)" data-list='["in","out"]' id="cio" class="btn script-disable  btn-red btn-valve-list">Close In/Out</button>
                         </div>
                         <div class="btn-valve-outline form-valve-list">
-                            <button onclick="openValves(this)" data-list='["in","out"]' id="cio" {% if script_running %}disabled{% endif%} class="btn script-disable  btn-green btn-valve-list {% if script_running %}btn-locked{% endif%}">Open In/Out</button>
-                        </div>
-                    </div>
-                    <div class="container-column">
-                        <div class="btn-valve-outline form-valve-list">
-                            <button onclick="closeValves(this)" data-list='["wash","bsa","strep","ag","ab","phage","waste","in","out","p1","p2", "p3"]' id="ca" {% if script_running %}disabled{% endif%} class="btn script-disable  btn-red btn-valve-list {% if script_running %}btn-locked{% endif%}">Close All</button>
-                        </div>
-                        <div class="btn-valve-outline form-valve-list">
-                            <button onclick="openValves(this)" data-list='["wash","bsa","strep","ag","ab","phage","waste","in","out","p1","p2", "p3"]' {% if script_running %}disabled{% endif%} class="btn script-disable  btn-green btn-valve-list {% if script_running %}btn-locked{% endif%}">Open All</button>
+                            <button onclick="openValves(this)" data-list='["in","out"]' id="cio" class="btn script-disable  btn-green btn-valve-list">Open In/Out</button>
                         </div>
                     </div>
                     <div class="container-column">
                         <div class="btn-valve-outline form-valve-list">
-                            <button onclick="closeValves(this)" data-list='["p1","p2", "p3"]' id="cp" {% if script_running %}disabled{% endif%} class="btn script-disable  btn-red btn-valve-list {% if script_running %}btn-locked{% endif%}">Close Pumps</button>
+                            <button onclick="closeValves(this)" data-list='["wash","bsa","strep","ag","ab","phage","waste","in","out","p1","p2", "p3"]' id="ca" class="btn script-disable  btn-red btn-valve-list">Close All</button>
                         </div>
                         <div class="btn-valve-outline form-valve-list">
-                            <button onclick="openValves(this)" data-list='["p1","p2", "p3"]' id="op" {% if script_running %}disabled{% endif%} class="btn script-disable  btn-green btn-valve-list {% if script_running %}btn-locked{% endif%}">Open Pumps</button>
+                            <button onclick="openValves(this)" data-list='["wash","bsa","strep","ag","ab","phage","waste","in","out","p1","p2", "p3"]' class="btn script-disable  btn-green btn-valve-list">Open All</button>
+                        </div>
+                    </div>
+                    <div class="container-column">
+                        <div class="btn-valve-outline form-valve-list">
+                            <button onclick="closeValves(this)" data-list='["p1","p2", "p3"]' id="cp" class="btn script-disable  btn-red btn-valve-list">Close Pumps</button>
+                        </div>
+                        <div class="btn-valve-outline form-valve-list">
+                            <button onclick="openValves(this)" data-list='["p1","p2", "p3"]' id="op" class="btn script-disable  btn-green btn-valve-list">Open Pumps</button>
                         </div>
                     </div>
                 </div>
@@ -162,17 +162,18 @@
         const log_panel = document.getElementById('logger');
         const log_outer = document.getElementById('logger-outer');
         const script_disable_list = document.getElementsByClassName('script-disable');
+        let script_started = false;
+
+
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                log_outer.scrollTop = log_outer.scrollHeight;
+            }, 50)
+        });
 
         save.addEventListener('submit', function(event) {
             const content = script_preview.innerHTML;
             save_preview.value = content;
-        });
-
-        script_preview.addEventListener('keydown', function(event) {
-            if (event.key === 'Enter') {
-//            event.preventDefault();
-  //          document.execCommand('insertHTML', false, '\n');
-            }
         });
 
         function toggleValve(valve) {
@@ -211,8 +212,36 @@
             }
         }
 
+        function convertScriptDisplay() {
+            if (script_started === false) {
+                const content = script_preview.textContent;
+                script_preview.innerHTML = ''
+                const lines_array = content.split('\n')
+                lines_array.forEach((line, index) => {
+                    const line_span = document.createElement('span');
+                    line_span.textContent = line;
+                    line_span.dataset.index = index+1;
+                    line_span.classList.add('script-line');
+                    script_preview.appendChild(line_span);
+                });
+                script_started = true;
+            }
+        }
+
+        function highlightLine(index) {
+            const lines_highlighted = script_preview.querySelectorAll('.script-highlight');
+            lines_highlighted.forEach(line_span => {
+                line_span.classList.remove('script-highlight');
+            });
+            const current_span = script_preview.querySelector(`span[data-index="${index}"]`);
+            if (current_span) {
+                current_span.classList.add('script-highlight');
+            }
+        }
+
         function play() {
             disable();
+            convertScriptDisplay();
             script_preview.contentEditable = false;
             skip_button.classList.add('btn-blue');
             skip_button.disabled = false;
@@ -227,7 +256,7 @@
         }
 
         function skip() {socket.emit('skip');}
-        
+
         socket.on('play', play);
 
         socket.on('pause', pause);
@@ -265,13 +294,28 @@
             log_outer.scrollTop = log_outer.scrollHeight;
         });
 
-        document.addEventListener('DOMContentLoaded', function() {
-                setTimeout(() => {
-                log_outer.scrollTop = log_outer.scrollHeight;
-            }, 50)
+        socket.on('line', (data) => {
+            highlightLine(data.index);
         });
 
+        socket.on('connect', () => {
+            socket.emit('poll');
+        })
+
     </script>
+
+    {% if script_state == 'running'%}
+    <script>
+        play();
+    </script>
+    {% endif %}
+
+    {% if script_state == 'paused'%}
+    <script>
+        play();
+        pause();
+    </script>
+    {% endif %}
 
 </body>
 </html>
