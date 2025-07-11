@@ -10,7 +10,7 @@ The software is divided into two separate interfaces - one for configuration and
 ![Configuration interface](/assets/config_interface.png)
 In the configuration interface, the operator selects a configuration file that will be used to initialize hardware and select a control interface. The file can be previewed within the interface or loaded directly. If the file is previewed, the file can also be edited. Edits do not need to be saved in order to be loaded, but they will not be preserved for future sessions. 
 
-## Control interface
+### Control interface
 ![Control interface](/assets/controller_interface.png)
 The controller interface allows operators to interact with their device. Scripts can be selected, edited and saved as needed. While executing a script, the operator has the ability to pause/resume, skip steps, or terminate the process. If a script is not actively running, the user can manually control the device. Configurations and actions are recorded in a log that is both presented on the interface and stored in a separate file.
 
