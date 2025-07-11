@@ -20,7 +20,7 @@ def createApp():
     cdir = os.getcwd()
     ndir = os.path.join(cdir, "logs")
     os.makedirs(ndir, exist_ok=True)
-    filename = "MicrofluidicApp"
+    filename = "plfluidics"
 
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)

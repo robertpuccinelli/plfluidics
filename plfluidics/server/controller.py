@@ -9,7 +9,7 @@ import io
 from time import sleep
 from flask import request, render_template
 
-from plfluidics.server.models import ModelValves, ModelConfig, ModelScript
+from plfluidics.server.models import ModelHardware, ModelConfig, ModelScript
 
 
 class MicrofluidicController():
@@ -57,7 +57,7 @@ class MicrofluidicController():
         self.config_model = None
         self.script_model = None
 
-        self.valve_model = ModelValves(logger_name='controller.valves')
+        self.valve_model = ModelHardware(logger_name='controller.valves')
         self.config_model = ModelConfig(options=self.valve_model.optionsGet(), logger_name='controller.config')
         self.script_model = ModelScript(self.userQ, self.scriptQ, valve_list=None, logger_name='controller.script')
 

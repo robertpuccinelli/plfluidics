@@ -9,7 +9,7 @@ Model:
 from time import time, sleep
 import json
 import logging
-from plfluidics.valves.valve_controller import ValveControllerRGS, SimulatedValveController
+from plfluidics.hardware.valve_controller import ValveControllerRGS, SimulatedValveController
 
 class ModelConfig():
     def __init__(self, options, logger_name=None):
@@ -100,7 +100,7 @@ class ModelConfig():
         return new_dict
     
 
-class ModelValves():
+class ModelHardware():
 
     def __init__(self, logger_name=None):
         if logger_name:
@@ -118,10 +118,10 @@ class ModelValves():
                         'valve_commands': valve_commands}
         
         self.reset()
-        self.logger.debug('ModelValves initialized.')
+        self.logger.debug('ModelHardware initialized.')
 
     def reset(self):
-        self.logger.debug('Resetting ModelValves to default values.')
+        self.logger.debug('Resetting ModelHardware to default values.')
         server_status = {'status': 'no_config', 
                          'valve_states':{}}
         config_status = {'config_name':'none',
