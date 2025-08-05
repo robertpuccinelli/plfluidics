@@ -32,6 +32,46 @@ Once the package is installed, the application can be served by executing a the 
 
 Once executed, the application can be accessed on a browser at port 5454 of the localhost ([127.0.0.1:5454](127.0.0.1:5454)) or the remote IP address. For embedded servers, it may be helpful to convert this task into a systemd service or something similar to facilitate automation. If a different port or configuration is desired, review how the application is launched in app.appRun() and create a custom script. It can be manually terminated by pressing `ctrl + c` or closing the terminal window.
 
+### Running application server as a systemd service
+If running the server on a dedicated Debian system, it can help to run the application as a service so that it will automatically restart after booting. First, bash script to launch the application. The example script provided below assumes that the virtual environment named `venv-plfluidics` is installed in the home directory of a user named `plfluidics`. The script unloads FTDI VCP drivers (see the troubleshooting section below), starts the virtual environment, and then launches the server.
+
+```bash
+#!/bin/bash
+/sbin/rmmod ftdi_sio
+/sbin/rmmod usbserial
+source /home/plfluidics/venv-plfluidics/bin/activate
+python3 -m plfluidics.app
+```
+
+Once the script has been created, change the permissions of the script so that it can be executed and modified by root and users.
+
+`chmod 0770 /path/to/script.sh`
+
+Then create a systemd service by creating a file named `/etc/systemd/system/plfluidics.service`
+```
+[Unit]
+Description= plfluidics server
+After=network.target
+
+[Service]
+User=root
+ExecStart=/usr/bin/bash /path/to/script.sh
+Restart=always
+StandardOutput=journal
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Afterwards, run the service so that it can automatically launch and always be running.
+
+`systemctl enable plfluidics.service`
+
+Confirm that the service is running by checking its status
+
+`systemctl status plfluidics.service`
+
+
 ## Customization
 **plfluidics** is designed with a model-view-controller framework that uses a driver adapter pattern so that a various types of hardware can be used as long as they share a common interface. The \drivers directory is for low level interfacing with the OS. The \hardware directory is for higher level abstractions of the hardware that directly interface with the MVC framework. The \server directory holds the MVC code.
 
