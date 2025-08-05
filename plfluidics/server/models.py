@@ -41,7 +41,7 @@ class ModelConfig():
             self.logger.debug(msg)
             raise KeyError(msg)
         if formatted_data['driver'] not in self.options['driver_options']:
-            msg = f'Driver not in recognized list: {self.options['driver_options']}'
+            msg = f'Driver not in recognized list: {self.options["driver_options"]}'
             self.logger.debug(msg)
             raise ValueError(msg)
         new_config={}
@@ -147,7 +147,7 @@ class ModelHardware():
         self.reset()
         self.data['config']=curr_config
         self.data['server']['status'] = 'driver_not_initialized'
-        self.logger.info(f'Configuration set: {self.data['config']['config_name']}')
+        self.logger.info(f'Configuration set: {self.data["config"]["config_name"]}')
         
     def driverSet(self):
         self.logger.debug('Setting driver for valve controller.')
@@ -174,7 +174,7 @@ class ModelHardware():
             self.data['controller'] = []
 
         self.data['server']['valve_states']= valve_def_position
-        self.logger.info(f'Valve controller driver set: {config['driver']}')         
+        self.logger.info(f'Valve controller driver set: {config["driver"]}')         
     
     def openValve(self, valve):
         self.logger.debug(f'Opening valve: {valve}')
