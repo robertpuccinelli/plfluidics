@@ -44,3 +44,8 @@ Once executed, the application can be accessed on a browser at port 5454 of the 
 ### Adding a new device
 1. Create a configuration file with initialization parameters and aliases that match your device
 2. Create a new HTML template in the /server/templates directory
+
+## Troubleshooting
+
+### Errors with the FTDI D2XX driver on Linux
+Many Linux distributions have both the VCP and D2XX FTDI drivers installed. However, when trying to connect to a USB device with the D2XX driver, you may run into an error stating something along the lines that only one driver can be used at a time. FTDI provides some suggestions for how to resolve this issue in the "Notes on Kernel Built-in Support of FTDI devices" section of the [D2XX README document](https://ftdichip.com/Driver/D2XX/Linux/ReadMe.txt). If the platform you're using will not be using other FTDI devices, I recommend following the instructions for the first option that removes the kernel module ftdi_sio.
