@@ -64,7 +64,7 @@ class MicrofluidicController():
         self.logger.debug('MicrofluidicController initialized.')
 
     def templatesDir(self):
-        return f'{importlib.resources.files('plfluidics.server.templates').joinpath('config.html').parent}'
+        return f'{importlib.resources.files("plfluidics.server.templates").joinpath("config.html").parent}'
 
     ############
     # LOGGGING #

@@ -20,6 +20,7 @@ setuptools.setup(
         'ftd2xx',
         'ft4222',
         'waitress',
+        'eventlet',
     ],
     test_suite="tests",
 )
