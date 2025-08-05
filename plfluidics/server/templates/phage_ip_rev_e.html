@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Phage IP - Rev E</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+</head>
+<body>
+    <div class="container-column" style="margin: 0 auto">
+        <div class="container-row">
+            <form method="POST" action="/changeConfig">
+                <button type="submit"  class="btn script-disable  btn-blue" style="margin-left: auto;">Change Config</button>
+            </form> 
+            <a href="/" class="h1-link" style="margin:auto; text-align: center;">Microfluidic Controller<br>Phage IP - Rev D</a>
+            <form method="POST" action="/reloadConfig">
+                <button type="submit"  class="btn script-disable  btn-blue" style="margin-right: auto;">Reload Config</button>
+            </form> 
+        </div>
+        <div class="container-row" style="height: 90vh;">
+            <div class="container-column" style="border: 1px solid #ccc; width:30%; margin-right: 15px;">
+                <div class="container-row section-title"><h2>Script Selection</h2></div>
+                    <form method="POST" action="/loadScript" style="width:100%; display: flex; flex-direction: column; align-items: center;">
+                            <select id="script_selection" name="script" style="width:75%;">
+                                {% if script_files %}
+                                    {% for item in script_files %}
+                                        <option {% if script_selected == item %}selected{% endif %} data-filename="{{ item }}" >{{ item }}</option>
+                                    {% endfor %}
+                                {% endif %}
+                            </select>
+                            <button type="submit" class="btn script-disable  btn-blue" style="margin-bottom:15px;">Load Script</button>
+                    </form>
+                <div class="container-row section-title"><h2>Script</h2></div>      
+                <div class="panel" style="max-height:40%;">
+                    <div class="panel-text" id="script-preview-text" contenteditable="plaintext-only">{{ script }}</div>
+                </div>
+                <form method="POST" id="save" action="/saveScript">
+                    <center>
+                        <input type="text" name="file_name" style="width: 100%; margin: 10px 0 10px; font-size:medium;" placeholder="file_name">
+                        <input type="hidden" id="save-panel-text-field" name="panel_text">
+                        <button type="submit"  class="btn script-disable  btn-blue" style="margin-top: 0; margin-bottom:15px;"">Save Script</button>
+                    </center>
+                </form>
+                <div class="container-row section-title"><h2>Script Controls</h2></div>
+                <div class="container-row" style="width:100%;">
+                    <div>
+                        <button onclick="playPause()" id="play_button" {% if not script_selected %}disabled{% endif %} class="btn btn-valve {% if script_selected %}btn-green{% endif %}" style="margin: 10px;">&#x23F5;</button>
+                    </div>
+                    <div>
+                        <button onclick="skip()" id="skip_button" {% if not script_processed %}disabled{% endif %} class="btn btn-valve {% if script_processed %}btn-blue{% endif%}" style="margin: 10px;">&#x23ED;</button>
+                    </div>    
+                    <form method="POST" action="/stopScript">
+                        <button type="submit" id='stop_button' {% if not script_processed %}disabled{% endif %} class="btn btn-valve {% if script_processed %}btn-red{% endif%}" style="margin: 10px;">&#x23F9;</button>
+                    </form>                      
+                </div>
+                <label for="step_progress_bar" style="font-size:large; margin-top:10px;">Step time: <span id="step_time_text"></span></label>
+                <progress id="step_progress_bar" value="100" max="100"></progress>
+                <label for="script_progress_bar" style="font-size:large; margin-top:10px;">Script time: <span id="script_time_text"></span></label>
+                <progress id="script_progress_bar" value="100" max="100"></progress>  
+            </div>
+            <div class="container-column" style="border: 1px solid #ccc; width:70%;">
+                <div class="container-row section-title"><h2>Input Control</h2></div>
+                <div class="container-row">
+                    <div class="btn-valve-outline">
+                        <label for="wash" class="btn-valve-label">Wash</label>
+                        <button onclick="toggleValve(this)" id="wash"  class="btn script-disable  btn-valve {% if valves['wash']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['wash']=='open' %}O{% else %}C{% endif %}</button>
+                    </div>
+                    <div class="btn-valve-outline">
+                        <label for="bsa" class="btn-valve-label">BSA</label>
+                        <button onclick="toggleValve(this)" id="bsa" class="btn script-disable  btn-valve {% if valves['bsa']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['bsa']=='open' %}O{% else %}C{% endif %}</button>
+                    </div>
+                    <div class="btn-valve-outline">
+                        <label for="strep" class="btn-valve-label">Strep</label>
+                        <button onclick="toggleValve(this)" id="strep" class="btn script-disable  btn-valve {% if valves['strep']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['strep']=='open' %}O{% else %}C{% endif %}</button>
+                    </div>
+                    <div class="btn-valve-outline">
+                        <label for="ag" class="btn-valve-label">A/G</label>
+                        <button onclick="toggleValve(this)" id="ag" class="btn script-disable  btn-valve {% if valves['ag']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['ag']=='open' %}O{% else %}C{% endif %}</button>
+                    </div>
+                    <div class="btn-valve-outline">
+                        <label for="ab" class="btn-valve-label">Ab</label>
+                        <button onclick="toggleValve(this)" id="ab" class="btn script-disable  btn-valve {% if valves['ab']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['ab']=='open' %}O{% else %}C{% endif %}</button>
+                    </div>
+                    <div class="btn-valve-outline">
+                        <label for="phage" class="btn-valve-label">Phage</label>
+                        <button onclick="toggleValve(this)" id="phage" class="btn script-disable  btn-valve {% if valves['phage']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['phage']=='open' %}O{% else %}C{% endif %}</button>
+                    </div>
+                    <div class="btn-valve-outline">
+                        <label for="elu" class="btn-valve-label">Elution</label>
+                        <button onclick="toggleValve(this)" id="elu" class="btn script-disable  btn-valve {% if valves['elu']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['elu']=='open' %}O{% else %}C{% endif %}</button>
+                    </div>
+                    <div class="btn-valve-outline">
+                        <label for="extra" class="btn-valve-label">Extra</label>
+                        <button onclick="toggleValve(this)" id="extra" class="btn script-disable  btn-valve {% if valves['extra']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['extra']=='open' %}O{% else %}C{% endif %}</button>
+                    </div>
+                </div>
+                <div class="container-row section-title"><h2>Flow Control</h2></div>
+                <div class="container-row">
+                    <div class="btn-valve-outline">
+                        <label for="waste" class="btn-valve-label">Waste</label>
+                        <button onclick="toggleValve(this)" id="waste" class="btn script-disable  btn-valve {% if valves['waste']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['waste']=='open' %}O{% else %}C{% endif %}</button>
+                    </div>
+                    <div class="btn-valve-outline">
+                        <label for="in" class="btn-valve-label">In</label>
+                        <button onclick="toggleValve(this)" id="in" class="btn script-disable  btn-valve {% if valves['in']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['in']=='open' %}O{% else %}C{% endif %}</button>
+                    </div>
+                    <div class="btn-valve-outline">
+                        <label for="out" class="btn-valve-label">Out</label>
+                        <button onclick="toggleValve(this)" id="out" class="btn script-disable  btn-valve {% if valves['out']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['out']=='open' %}O{% else %}C{% endif %}</button>
+                    </div>
+                    <div class="btn-valve-outline">
+                        <label for="sample" class="btn-valve-label">Sample</label>
+                        <button onclick="toggleValve(this)" id="sample" class="btn script-disable  btn-valve {% if valves['sample']=='open' %}btn-green {% else %}btn-red{% endif %}">{% if valves['sample']=='open' %}O{% else %}C{% endif %}</button>
+                    </div>
+                </div>
+                <div class="container-row section-title"><h2>Utilities</h2></div>
+                <div class="container-row" style="margin: 10px;">
+                    <div class="container-column">
+                        <div class="btn-valve-outline form-valve-list">
+                            <button onclick="closeValves(this)" data-list='["in","out"]' id="cio" class="btn script-disable  btn-red btn-valve-list">Close In/Out</button>
+                        </div>
+                        <div class="btn-valve-outline form-valve-list">
+                            <button onclick="openValves(this)" data-list='["in","out"]' id="cio" class="btn script-disable  btn-green btn-valve-list">Open In/Out</button>
+                        </div>
+                    </div>
+                    <div class="container-column">
+                        <div class="btn-valve-outline form-valve-list">
+                            <button onclick="closeValves(this)" data-list='["wash","bsa","strep","ag","ab","phage","elu","ex","waste","in","out","sample"]' id="ca" class="btn script-disable  btn-red btn-valve-list">Close All</button>
+                        </div>
+                        <div class="btn-valve-outline form-valve-list">
+                            <button onclick="openValves(this)" data-list='["wash","bsa","strep","ag","ab","phage","elu","ex","waste","in","out","sample"]' class="btn script-disable  btn-green btn-valve-list">Open All</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="container-row section-title" style="margin-bottom: 0;"><h2>Log</h2></div>
+                <div class="panel" id="logger-outer" style="padding:0; margin: .5%; width:98.5%;">
+                    <div class="panel-log" id="logger">{{ log }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var socket = io();
+        const script_preview = document.getElementById('script-preview-text');
+        const save = document.getElementById('save');
+        const save_preview = document.getElementById('save-panel-text-field');
+        const play_button = document.getElementById('play_button');
+        const skip_button = document.getElementById('skip_button');
+        const stop_button = document.getElementById('stop_button');
+        const step_time = document.getElementById('step_time_text');
+        const step_prog = document.getElementById('step_progress_bar');
+        const script_time = document.getElementById('script_time_text');
+        const script_prog = document.getElementById('script_progress_bar');
+        const log_panel = document.getElementById('logger');
+        const log_outer = document.getElementById('logger-outer');
+        const script_disable_list = document.getElementsByClassName('script-disable');
+        let script_started = false;
+
+
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                log_outer.scrollTop = log_outer.scrollHeight;
+            }, 50)
+        });
+
+        save.addEventListener('submit', function(event) {
+            const content = script_preview.innerHTML;
+            save_preview.value = content;
+        });
+
+        function toggleValve(valve) {
+            var id = valve.id
+            socket.emit('toggleValve', {'valve':id})
+            console.log('Send signal:', valve);
+        }
+
+        function closeValves(valves){
+            const valve_list = JSON.parse(valves.dataset.list);
+            socket.emit('closeValves', {'valves':valve_list});
+        }
+
+        function openValves(valves){
+            const valve_list = JSON.parse(valves.dataset.list);
+            socket.emit('openValves', {'valves':valve_list});
+        }
+
+        function playPause(){
+            socket.emit('play-pause', {'panel_text':script_preview.innerHTML})
+        }
+
+        function enable() {
+            for (let i = 0; i < script_disable_list.length; i++) {
+                const btn = script_disable_list[i];
+                btn.disabled = false;
+                btn.classList.remove('btn-locked');
+            }
+        }
+
+        function disable() {
+            for (let i = 0; i < script_disable_list.length; i++) {
+                const btn = script_disable_list[i];
+                btn.disabled = true;
+                btn.classList.add('btn-locked');
+            }
+        }
+
+        function convertScriptDisplay() {
+            if (script_started === false) {
+                const content = script_preview.textContent;
+                script_preview.innerHTML = ''
+                const lines_array = content.split('\n')
+                lines_array.forEach((line, index) => {
+                    const line_span = document.createElement('span');
+                    line_span.textContent = line;
+                    line_span.dataset.index = index+1;
+                    line_span.classList.add('script-line');
+                    script_preview.appendChild(line_span);
+                });
+                script_started = true;
+            }
+        }
+
+        function highlightLine(index) {
+            const lines_highlighted = script_preview.querySelectorAll('.script-highlight');
+            lines_highlighted.forEach(line_span => {
+                line_span.classList.remove('script-highlight');
+            });
+            const current_span = script_preview.querySelector(`span[data-index="${index}"]`);
+            if (current_span) {
+                current_span.classList.add('script-highlight');
+            }
+        }
+
+        function play() {
+            disable();
+            convertScriptDisplay();
+            script_preview.contentEditable = false;
+            skip_button.classList.add('btn-blue');
+            skip_button.disabled = false;
+            stop_button.classList.add('btn-red');
+            stop_button.disabled = false;
+            play_button.innerHTML = '&#x23F8;';
+        }
+
+        function pause() {
+            enable();
+            play_button.innerHTML = '&#x23F5;';
+        }
+
+        function skip() {socket.emit('skip');}
+
+        socket.on('play', play);
+
+        socket.on('pause', pause);
+
+        socket.on('stop', () => {
+            window.location.href = "/";
+        });
+
+        socket.on('valve', (data) => {
+            var valve_button = document.getElementById(data.valve)
+            if (data.action === 'open') {
+                valve_button.classList.remove('btn-red')
+                valve_button.classList.add('btn-green')  
+                valve_button.textContent = 'O'        
+          
+            }
+            if (data.action === 'close') {
+                valve_button.classList.remove('btn-green')
+                valve_button.classList.add('btn-red')    
+                valve_button.textContent = 'C'        
+            }
+        });
+
+        socket.on('time', (data) => {
+            if (data.event === 't_r'){step_prog.value = data.duration; step_time.innerHTML = data.remaining + 's';}
+            if (data.event === 't_a'){script_prog.value = data.duration; script_time.innerHTML = data.remaining + 's';}
+            if (data.event === 't_n'){step_prog.max = data.value;}
+            if (data.event === 't_e') {script_prog.max = data.value;}
+        })
+
+        socket.on('log_msg', (data) => {
+            console.log(log_panel.textContent)
+            console.log(data.msg)
+            log_panel.textContent += data.msg + '\n'
+            log_outer.scrollTop = log_outer.scrollHeight;
+        });
+
+        socket.on('line', (data) => {
+            highlightLine(data.index);
+        });
+
+        socket.on('connect', () => {
+            socket.emit('poll');
+        })
+
+    </script>
+
+    {% if script_state == 'running'%}
+    <script>
+        play();
+    </script>
+    {% endif %}
+
+    {% if script_state == 'paused'%}
+    <script>
+        play();
+        pause();
+    </script>
+    {% endif %}
+
+</body>
+</html>
