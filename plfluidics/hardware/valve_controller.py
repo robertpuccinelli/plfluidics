@@ -97,26 +97,13 @@ class ValveControllerRGS(ValveController):
 
     def _initValveBanks(self, valve_param_list):
         self.device=ftd2xx.open(0) # Grab first device, not ideal
-        a=0
-        b=0
-        c=0
-        for valve in valve_param_list:
-            if valve[0] < 8:
-                a += 1
-            elif valve[0] > 15:
-                c += 1
-            else:
-                b += 1
 
-        if a > 0:
-            logger.info('Initializing valve bank A.')
-            self.device.write(b'!A\x00') # !A0, not ideal
-        if b > 0:
-            logger.info('Initializing valve bank B.')
-            self.device.write(b'!B\x00') # !B0, not ideal
-        if c > 0:
-            logger.info('Initializing valve bank C.')
-            self.device.write(b'!C\x00') # !C0, not ideal
+        logger.info('Initializing valve bank A.')
+        self.device.write(b'!A\x00') # !A0, not ideal
+        logger.info('Initializing valve bank B.')
+        self.device.write(b'!B\x00') # !B0, not ideal
+        logger.info('Initializing valve bank C.')
+        self.device.write(b'!C\x00') # !C0, not ideal
 
     def _valveConstructor(self, addr, pol, state):
         return ValveRGS(USB_device=self.device, address=addr,default_state=state, polarity_inverted=pol)
