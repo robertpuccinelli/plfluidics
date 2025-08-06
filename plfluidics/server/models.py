@@ -159,7 +159,7 @@ class ModelHardware():
             v_name = valve['valve_alias']
             v_num = valve['solenoid_number']
             pol = valve['inv_polarity']
-            ds = valve['default_state_closed'] 
+            ds = valve['default_state_open'] 
             valve_list.append([v_num,pol,ds,v_name])
             if ds:
                 valve_def_position[v_name] = 'open'
