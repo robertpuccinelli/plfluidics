@@ -105,6 +105,10 @@ class ValveControllerRGS(ValveController):
         logger.info('Initializing valve bank C.')
         self.device.write(b'!C\x00') # !C0, not ideal
 
+        self.device.write(b'A\x00')
+        self.device.write(b'B\x00')
+        self.device.write(b'C\x00')
+
     def _valveConstructor(self, addr, pol, state):
         return ValveRGS(USB_device=self.device, address=addr,default_state=state, polarity_inverted=pol)
     
