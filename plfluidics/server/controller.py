@@ -14,7 +14,7 @@ from plfluidics.server.models import ModelHardware, ModelConfig, ModelScript
 
 class MicrofluidicController():
 
-    def __init__(self, flask_app, socketio_instance, log_level=logging.INFO, log_handler=None):
+    def __init__(self, flask_app, socketio_instance, log_level=logging.INFO, log_file_handler=None):
         self.app = flask_app
         self.socketio = socketio_instance
         self.log_level = log_level
@@ -38,8 +38,8 @@ class MicrofluidicController():
 
         self.logger.addHandler(self.log_queue)
         self.logger.addHandler(log_var_handler)
-        if log_handler is not None:
-            self.logger.addHandler(log_handler)
+        if log_file_handler is not None:
+            self.logger.addHandler(log_file_handler)
 
         self.reset()
 
