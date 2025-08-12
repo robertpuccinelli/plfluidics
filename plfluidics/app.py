@@ -34,7 +34,7 @@ def createApp():
     app_server = Flask(__name__)
     socketio.init_app(app_server, cors_allowed_origins="*", async_mode='eventlet')
 #    socketio.init_app(app_server, cors_allowed_origins="*", async_mode='threading')
-    ctrl = MicrofluidicController(app_server, socketio)
+    ctrl = MicrofluidicController(app_server, socketio, log_file_handler=handler_file)
     ctrl.logger.info(f'Log file location: {log_loc}')
 
     app_server.static_folder = ctrl.templatesDir()
