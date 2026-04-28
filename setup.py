@@ -15,12 +15,12 @@ setuptools.setup(
                                 'server/templates/*']},
     include_package_data=True,
     install_requires=[
-        'flask',
-        'flask-socketio',
-        'ftd2xx',
-        'ft4222',
-        'waitress',
-        'eventlet',
+        'flask==3.1.1',
+        'flask-socketio==5.5.1',
+        'ftd2xx==1.3.8',
+        'ft4222==1.12.0',
+        'waitress==3.0.2',
+        'eventlet==0.40.2',
     ],
     test_suite="tests",
 )
