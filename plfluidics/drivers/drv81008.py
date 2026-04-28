@@ -1,158 +1,232 @@
-
+from ctypes import BigEndianStructure, c_uint16
+from .ft4222_hub import FT4222SPIDevice_Single
 '''
 Register | Addr   | Def | Purpose
 ---------|--------|-----|--------
 out_ctrl | 000000 | 00h | control outputs
 in_map_0 | 000100 | 04h | input0 -> output#
-in_map_1 | 000101 | 08h | input1 -> output#
-in_stat  | 000110 | 00h | transmission and input status
-ol_curr  | 001000 | 00h | control open load current
-out_stat | 001001 | 00h | detects open loads
-config1  | 001100 | 00h | control device behavior
-out_clr  | 001101 | 00h | clear output error latches
-config2  | 101000 | 00h | control device behavior
+in_map_1 | 000101 | 05h | input1 -> output#
+in_stat  | 000110 | 06h | transmission and input status
+ol_curr  | 001000 | 08h | control open load current
+out_stat | 001001 | 09h | detects open loads
+config1  | 001100 | 0Ch | control device behavior
+out_clr  | 001101 | 0Dh | clear output error latches
+config2  | 101000 | 28h | control device behavior
 
 '''
 
-class drv81001():
+
+class RegStdDiagnosis(BigEndianStructure):
+    _fields_ = [
+        ("reserved1", c_uint16, 1),
+        ("uvrvm", c_uint16, 1),
+        ("reserved2", c_uint16, 1),
+        ("mode", c_uint16, 2),
+        ("ter", c_uint16, 1),
+        ("reserved3", c_uint16, 1),
+        ("oloff", c_uint16, 1),
+        ("err", c_uint16, 8)
+        ]
+
+
+class RegInStsMonitor(BigEndianStructure):
+    _fields_ = [
+        ("reserved1", c_uint16, 8),
+        ("ter", c_uint16, 1),
+        ("reserved2", c_uint16, 5),
+        ("inst1", c_uint16, 1),
+        ("inst0", c_uint16, 1)
+    ]
+
+
+class RegConfig(BigEndianStructure):
+    _fields_ = [
+        ("reserved1", c_uint16, 8),
+        ("act", c_uint16, 1),
+        ("rst", c_uint16, 1),
+        ("disol", c_uint16, 1),
+        ("ocp", c_uint16, 1),
+        ("par3", c_uint16, 1),
+        ("par2", c_uint16, 1),
+        ("par1", c_uint16, 1),
+        ("par0", c_uint16, 1)
+    ]
+
+
+class RegConfig2(BigEndianStructure):
+    _fields_ = [
+        ("reserved1", c_uint16, 8),
+        ("lock", c_uint16, 3),
+        ("reserved2", c_uint16, 2),
+        ("otw", c_uint16, 1),
+        ("reserved3", c_uint16, 1),
+        ("slew", c_uint16, 1)
+    ]
+
+
+class DRV81008():
+
     def __init__(self):
-        self.undervolt_err = 0
-        self.mode = 0
-        self.trans_err = 0
-        self.open_load_err = 0
-        self.overload_err = 0
-        self.outputs = 0
-        self.open_load_ctl = 0
-        self.open_load_status = 0
+        self.mode_states = {0: "RESERVED", 1:"LIMP", 2:"ACTIVE", 3:"IDLE"}
 
-        self.active = 0
-        self.reset = 0
-        self.open_load_dis = 0
-        self.ocurr_prof = 0
-        self.error = 0
-        self.overtemp = 0
-        self.slew_fast = 0
-        self.lock_sts = 0
+        # DRV81008 Fields
+        self.uvrvm  = 0
+        self.mode   = 0
+        self.ter    = 0
+        self.oloff  = 0
+        self.err    = 0
+        self.en     = 0
+        self.map0   = 0
+        self.map1   = 0
+        self.inst0  = 0
+        self.inst1  = 0
+        self.iol    = 0
+        self.osm    = 0
+        self.act    = 0
+        self.rst    = 0
+        self.disol  = 0
+        self.ocp    = 0
+        self.par0   = 0
+        self.par1   = 0
+        self.par2   = 0
+        self.par3   = 0
+        self.clr    = 0
+        self.lock   = 0
+        self.otw    = 0
+        self.slew   = 0
 
-        self._read  = 0b0100000000000000
-        self._write = 0b1000000000000000
-        self.data = 0
+        # SPI Helpers
+        self._read      = 0x4002
+        self._read_resp = 0x8000
+        self._write     = 0x8000
+        self._temp_out  = 0
+        self._temp_in   = 0
 
-        # Addresses
-        self.addr_offset = 8
-        self.out_ctrl = 0b000000
-        self.in_map_0 = 0b000100
-        self.in_map_1 = 0b000101
-        self.in_stat  = 0b000110
-        self.ol_curr  = 0b001000
-        self.out_stat = 0b001001
-        self.config1  = 0b001100
-        self.out_clr  = 0b001101
-        self.config2  = 0b101000
-
-        # Bitmask
-        self._8 = 0b1 << 7
-        self._7 = 0b1 << 6
-        self._6 = 0b1 << 5
-        self._5 = 0b1 << 4
-        self._4 = 0b1 << 3
-        self._3 = 0b1 << 2
-        self._2 = 0b1 << 1
-        self._1 = 0b1
-
-        ## Standard diagnosis
-        self._undervolt = 0b1 << 14
-        self._mode = 0b11 << 11
-        self._trans_err = 0b1 << 10
-        self._oload = 0b1 << 8
-
-        self._chan = 0b11111111
-
-        ## Input mask
-        self._terr = 0b1 << 7
-
-        ## Config 1
-        self._active = 0b1 << 7
-        self._reset = 0b1 << 6
-        self._dis_ol = 0b1 << 5
-        self._ocp = 0b1 << 4
-
-        ## Config 2
-        self._lkunlk = 0b111 << 5
-        self._lock = 0b110 << 5
-        self._unlock = 0b011 << 5
-        self._otw = 0b1 << 2
-        self._slew = 0b1
-
-    def _addr_shift(self, addr):
-        return addr << self.addr_offset
+        # Register Addresses
+        self.addr_std_diag  = 0x7F01
+        self.addr_en        = 0x0000
+        self.addr_map0      = 0x0400
+        self.addr_map1      = 0x0500
+        self.addr_istm      = 0x0600
+        self.addr_iol       = 0x0800
+        self.addr_osm       = 0x0900
+        self.addr_config1   = 0x0C00
+        self.addr_clr       = 0x0D00
+        self.addr_config2   = 0x2800
     
     def toggleAddrBit(self, addr, bit):
-        self.cmd_read_addr(addr)
-        self.data = self.data ^ (1 << bit)
-        self.cmd_write_addr(self, addr, self.data)
+        toggle_data = self.en ^ (1 << bit)
+        self.cmdWriteAddr(addr, toggle_data)
+                          
+    def toggleOutput(self, output_ch):
+        self.toggleAddrBit(self.addr_en, output_ch)
     
     def cmdWriteAddr(self,addr,data):
-        return self._send(self._write + self._addr_shift(addr) + data)
+        resp = self._send(self._write | addr | data)
+        self.processResp(resp)
     
     def cmdReadAddr(self,addr):
-        self.data = self._send(self._read + self._addr_shift(addr) + 0b10)
-        return self.data
-    
+        resp = self._send(self._read | addr)
+        self.processResp(resp)
+
+    def cmdReadStdDiag(self):
+        resp = self._send(self.addr_std_diag)
+        self.processResp(resp)
+
+    def processResp(self, resp):
+        print(resp)
+        if not (resp & self._read_resp):
+            self._parseStd(resp)
+        elif (resp & self.addr_en):
+            print("Parsing enable")
+            self._parseEn(resp)
+        elif (resp & self.addr_map0):
+            self._parseMap0(resp)
+        elif (resp & self.addr_map1):
+            self._parseMap1(resp)
+        elif (resp & self.addr_istm):
+            self._parseISTM(resp)
+        elif (resp & self.addr_iol):
+            self._parseIOL(resp)
+        elif (resp & self.addr_osm):
+            self._parseOSM(resp)
+        elif (resp & self.addr_config1):
+            self._parseConfig1(resp)
+        elif (resp & self.addr_clr):
+            self._parseClr(resp)
+        elif (resp & self.addr_config2):
+            self._parseConfig2(resp)
+
     def _send():
         pass
 
-    def toggleActive(self):
-        self.toggleAddrBit(self.config1,7)
-    
-    def toggleOpenLoadDetection(self):
-        self.toggleAddrBit(self.config1, 5)
-
-    def toggleOpenLoadCurrBit(self, bit):
-        self.toggleAddrBit()
-
     def readRegisters(self):
-        self.read_standard_diagnosis()
-        self.read_output_control()
-        self.read_open_load_curr()
-        self.read_output_status()
-        self.read_config1()
-        self.read_output_clear_latch()
-        self.read_config2()
+        self.cmdReadStdDiag()
+        self.cmdReadAddr(self.addr_en)
+        self.cmdReadAddr(self.addr_iol)
+        self.cmdReadAddr(self.addr_osm)
+        self.cmdReadAddr(self.addr_config1)
+        self.cmdReadAddr(self.addr_clr)
+        self.cmdReadAddr(self.addr_config2)
+        self.cmdReadStdDiag()
 
-    def readStandardDiagnosis(self):
-        self.cmd_read_addr(self._read + 0b01)  # Read standard diagnosis
-        self.undervolt_err = bool(self.data & self._undervolt) 
-        self.mode = self.data & self._mode
-        self.trans_err = bool(self.data & self._trans_err)
-        self.open_load_err = bool(self.data & self._oload)
-        self.overload_err = bool(self.data & self._err)
+    def _parseStd(self,read_data):
+        data = RegStdDiagnosis.from_buffer_copy(read_data.to_bytes(2))
+        self.uvrvm = data.uvrvm
+        self.mode = self.mode_states[data.mode]
+        self.ter = data.ter
+        self.oloff = data.oloff
+        self.err = data.err
 
-    def readOutputControl(self):
-        self.cmd_read_addr(self._read + self.out_ctrl)  # Read state of outputs
-        self.outputs = self.data & self._chan
+    def _parseEn(self, read_data):
+        self.outputs = read_data & 0xFF
 
-    def readOpenLoadCurr(self):
-        self.cmd_read_addr(self._read + self.ol_curr)  # Read open load monitoring
-        self.open_load_ctl = self.data & self._chan
+    def _parseMap0(self, read_data):
+        self.map0 = read_data & 0xFF
 
-    def readOutputStatus(self):
-        self.cmd_read_addr(self._read + self.out_stat)  # Read open load status
-        self.open_load_status = self.data & self._chan
+    def _parseMap1(self, read_data):
+        self.map1 = read_data & 0xFF
 
-    def readConfig1(self):
-        self.cmd_read_addr(self._read + self.config1)  # Read config1
-        self.active = self.data & self._active
-        self.reset = self.data & self._reset
-        self.open_load_dis = self.data & self._dis_ol
-        self.ocurr_prof = self.data & self._ocp
+    def _parseISTM(self, read_data):
+        data = RegInStsMonitor.from_buffer_copy(read_data.to_bytes(2))
+        self.ter = data.ter
+        self.inst0 = data.inst0
+        self.inst1 = data.inst1
 
-    def readOutputClearLatch(self):
-        self.cmd_read_addr(self._read + self.out_clr)  # Read output latch
-        self.error = self.data & self._chan
+    def _parseIOL(self, read_data):
+        self.iol = read_data & 0xFF
 
-    def readConfig2(self):
-        self.cmd_read_addr(self._read + self.config2)
-        self.lock_sts = self.data & self._lkunlk
-        self.overtemp = self.data & self._otw
-        self.slew_fast = self.data & self._slew
+    def _parseOSM(self, read_data):
+        self.osm = read_data & 0xFF
+
+    def _parseConfig1(self, read_data):
+        data = RegConfig.from_buffer_copy(read_data.to_bytes(2))
+        self.act = data.act
+        self.rst = data.rst
+        self.disol = data.disol
+        self.ocp = data.ocp
+        self.par0 = data.par0
+        self.par1 = data.par1
+        self.par2 = data.par2
+        self.par3 = data.par3
+
+    def _parseClr(self, read_data):
+        self.output_clr = read_data & 0xFF
+
+    def _parseConfig2(self, read_data):
+        data = RegConfig2.from_buffer_copy(read_data.to_bytes(2))
+        self.lock = self.mode_states[data.lock]
+        self.otw = data.otw
+        self.slew = data.slew
+
+
+class DRV81008_FT4222(DRV81008):
+
+    def __init__(self, ft_spi_device: FT4222SPIDevice_Single):
+        super().__init__()
+        self.controller = ft_spi_device
+
+    def _send(self, data: int):
+        self._temp_out = data
+        self._temp_in = int.from_bytes(self.controller.readWrite(data.to_bytes(2, byteorder='big'), term=True))
+        return self._temp_in

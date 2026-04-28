@@ -1,10 +1,9 @@
 import logging
 import ftd2xx
-import ft4222
-from ft4222.SPI import Cpha, Cpol
-from ft4222.SPIMaster import Mode, Clock, SlaveSelect
-from ft4222.GPIO import Port, Dir
-from plfluidics.hardware.valve import ValveRGS, Valve
+from ft4222 import FT2XXDeviceError
+from plfluidics.drivers.ft4222_hub import FT4222Hub
+from plfluidics.drivers.drv81008 import DRV81008_FT4222
+from plfluidics.hardware.valve import Valve, ValveRGS, ValvePLRD1
 
 logger = logging.getLogger(__name__)
 
@@ -113,53 +112,57 @@ class ValveControllerRGS(ValveController):
         return ValveRGS(USB_device=self.device, address=addr,default_state=state, polarity_inverted=pol)
     
     
-class ValveControllerFTDI(ValveController):
+class ValveControllerPLRD1(ValveController):
 
-    def __init__():
-        pass
+    def __init__(self, valve_param_list):
+        super().__init__(valve_param_list)
 
-    def setValvesOpen(self, valve_list):
-        pass
-    
-    def setValvesClose(self):
-        pass
-
-    def loadUSB(self,serial):
-        ft4222.createDeviceInfoList()
+    def __del__(self):
         try:
-            # 4 USB devices : 3 SPI and 1 GPIO
-            self.bank1 = ft4222.openBySerial(serial + ' A')
-            self.bank2 = ft4222.openBySerial(serial + ' B')
-            self.bank3 = ft4222.openBySerial(serial + ' C')
-            self.led = ft4222.openBySerial(serial + ' D')
+            self.device.close()
+        except Exception:
+            pass
 
-            # Initialize FTDI functions
-            self.bank1.spiMaster_Init(Mode.SINGLE, Clock.DIV_8, Cpol.IDLE_LOW, Cpha.CLK_LEADING, SlaveSelect.SS0)
-            self.bank2.spiMaster_Init(Mode.SINGLE, Clock.DIV_8, Cpol.IDLE_LOW, Cpha.CLK_LEADING, SlaveSelect.SS1)
-            self.bank3.spiMaster_Init(Mode.SINGLE, Clock.DIV_8, Cpol.IDLE_LOW, Cpha.CLK_LEADING, SlaveSelect.SS2)
-            self.led.gpio_Init(gpio0 = Dir.OUTPUT)
-            self.led.gpio_Write(Port.P3, 0)
-            self.serial = serial
+    def _initValveBanks(self, valve_param_list):
+        logger.debug('Initializing PLRD1 valve controller.')
+        ft_hub = FT4222Hub()
+        ft_hub.detectDevices()
+        if ( ft_hub.num_devices != 4):
+            raise ValueError(f'PLRD1 has 4 subunits. Only {ft_hub.num_devices} were detected.')
+        else:
+            try:
+                logger.debug('Initializing FT4222 A')
+                flag = "DRV A"
+                drvA = DRV81008_FT4222(ft_hub.initSPIDevice('FT4222 A'))
+                drvA.readRegisters()
+                logger.debug('Initializing FT4222 B')
+                flag = "DRV B"
+                drvB = DRV81008_FT4222(ft_hub.initSPIDevice('FT4222 B'))
+                drvB.readRegisters()
+                logger.debug('Initializing FT4222 C')
+                flag = "DRV C"
+                drvC = DRV81008_FT4222(ft_hub.initSPIDevice('FT4222 C'))
+                logger.debug('Initializing FT4222 D')
+                flag = "GPIO"
+                gpio = ft_hub.initGPIODevice('FT4222 D', outputs=[2,3])
+                self.device = {'A':drvA, 'B': drvB, 'C': drvC, 'LED':gpio}
 
-        except ft4222.FT2XXDeviceError as e:
-            logger.warning(e)
-            raise(e)
+            except FT2XXDeviceError as e:
+                raise ConnectionError(f'Unable to connect and initialize PLRD1 {flag} - {e}')
+            
+        logger.info('PLRD1 device initialized.')
+            
+    def _valveConstructor(self, addr, pol, state):
+        if addr < 8:
+            return ValvePLRD1(USB_device=self.device['A'], address=addr,default_state=state, polarity_inverted=pol)
+        if addr < 16:
+            return ValvePLRD1(USB_device=self.device['B'], address=addr-8,default_state=state, polarity_inverted=pol)
+        if addr < 24:
+            return ValvePLRD1(USB_device=self.device['C'], address=addr-16,default_state=state, polarity_inverted=pol)
+        else:
+            raise ValueError(f'Address exceeds capacity of the system. Addr: {addr}')
 
-    def reloadUSB(self):
-        # Electronically disconnect and reconnect the USB port
-        self.bank1.FT4222.cyclePort()
-        self.bank2.FT4222.cyclePort()
-        self.bank3.FT4222.cyclePort()
-        self.led.FT4222.cyclePort()
 
-        # Close the USB port connection
-        self.bank1.FT4222.close()
-        self.bank2.FT4222.close()
-        self.bank3.FT4222.close()
-        self.led.FT4222.close()
-
-        # Open the USB port connections
-        self.loadUSB(self.serial)
 
 
 class SimulatedValveController(ValveController):

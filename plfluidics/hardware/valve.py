@@ -1,6 +1,5 @@
 '''Classes for controlling microfluidic valves'''
 import logging
-import ftd2xx as ftd
 
 logger = logging.getLogger(__name__)
 
@@ -105,3 +104,22 @@ class ValveRGS(Valve):
 
     def _command(self,A,B):
         return self._joinBytes(self._strToByte(A), self._numToByte(B))
+    
+
+class ValvePLRD1(Valve):
+    """Valve class for the USB valve controller PLRD1.
+
+    USB controller device passed to valve as an argument. Valve will only operate on the address it possesses.
+    """
+    def __init__(self, USB_device, address, default_state=False, polarity_inverted=False):
+        self.device = USB_device
+        self._bit_mask = 1 << address
+        super().__init__(address, default_state, polarity_inverted)
+
+    def _writeState(self, output):
+        if output == 0:
+            cmd = self.device.en & ~self._bit_mask
+        elif output == 1:
+            cmd = self.device.en | self._bit_mask
+        self.cmdWrite(self.addr_en, cmd)
+        logger.debug('Valve set. {} : {}'.format(self.address, cmd))

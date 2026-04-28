@@ -26,8 +26,8 @@ def createApp():
     logger.setLevel(logging.DEBUG)
     log_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s [%(name)s]', '%H:%M:%S')
     log_loc = cdir + os.sep + 'logs' + os.sep
-    handler_file = TimedRotatingFileHandler(filename=log_loc + filename + '.log', when='midnight', interval=1, backupCount=14)
-    handler_file.setLevel(logging.INFO)
+    handler_file = TimedRotatingFileHandler(filename=log_loc + filename + '.log', when='midnight', interval=1, backupCount=28)
+    handler_file.setLevel(logging.DEBUG)
     handler_file.setFormatter(log_format)
     logger.addHandler(handler_file)
 
@@ -69,7 +69,7 @@ def createApp():
 
 def appRun():
     app = createApp()
-    socketio.run(app, host='0.0.0.0', port='5454', debug=False)
+    socketio.run(app, host='0.0.0.0', port='5455', debug=False)
 
 if __name__ == '__main__':
     appRun()

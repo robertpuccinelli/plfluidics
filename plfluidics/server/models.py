@@ -9,7 +9,7 @@ Model:
 from time import time, sleep
 import json
 import logging
-from plfluidics.hardware.valve_controller import ValveControllerRGS, SimulatedValveController
+from plfluidics.hardware.valve_controller import ValveControllerRGS, SimulatedValveController, ValveControllerPLRD1
 
 class ModelConfig():
     def __init__(self, options, logger_name=None):
@@ -109,7 +109,7 @@ class ModelHardware():
             self.logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
         self.logger.setLevel(logging.DEBUG)
         config_fields = ['config_name','author','date', 'device','driver','valves']
-        driver_options = ['rgs', 'simulation','none']
+        driver_options = ['rgs', 'plrd1', 'simulation','none']
         valve_fields = ['valve_alias','solenoid_number', 'default_state_closed','inv_polarity']
         valve_commands = ['open', 'close']
         self.options = {'config_fields': config_fields, 
@@ -170,6 +170,8 @@ class ModelHardware():
             self.data['controller'] = ValveControllerRGS(valve_list)
         elif config['driver'] == 'simulation':
             self.data['controller'] = SimulatedValveController(valve_list)
+        elif config['driver'] == 'plrd1':
+            self.data['controller'] = ValveControllerPLRD1(valve_list)
         elif config['driver'] == 'none':
             self.data['controller'] = []
 
@@ -198,7 +200,7 @@ class ModelScript():
             self.logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
         self.logger.setLevel(logging.DEBUG)
         self.operations = ['open','close', 'wait', 'pump','pause']
-        self.wait_units = ['s', 'm', 'h']
+        self.wait_units = ['ms','s', 'm', 'h']
         self.pump_units = ['hz']
         self.file_list = []
         self.flag_thread_engine = False
@@ -436,6 +438,8 @@ class ModelScript():
                                 step_time = 60 * int(op[1])
                             elif op[2] == 'h':
                                 step_time = 3600 * int(op[1])
+                            elif op[2] == 'ms':
+                                step_time = 0.001 * int(op[1])
                             else:
                                 step_time = int(op[1])
                             approx_time += step_time
