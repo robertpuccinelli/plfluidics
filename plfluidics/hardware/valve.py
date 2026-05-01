@@ -121,5 +121,5 @@ class ValvePLRD1(Valve):
             cmd = self.device.en & ~self._bit_mask
         elif output == 1:
             cmd = self.device.en | self._bit_mask
-        self.cmdWrite(self.addr_en, cmd)
+        self.device.cmdWriteAddr(self.device.addr_en, cmd)
         logger.debug('Valve set. {} : {}'.format(self.address, cmd))

@@ -119,32 +119,33 @@ class ValveControllerPLRD1(ValveController):
 
     def __del__(self):
         try:
-            self.device.close()
+            for dev in self.device.values():
+                dev.close()
         except Exception:
             pass
 
     def _initValveBanks(self, valve_param_list):
         logger.debug('Initializing PLRD1 valve controller.')
-        ft_hub = FT4222Hub()
-        ft_hub.detectDevices()
-        if ( ft_hub.num_devices != 4):
-            raise ValueError(f'PLRD1 has 4 subunits. Only {ft_hub.num_devices} were detected.')
+        self.hub = FT4222Hub()
+        self.hub.detectDevices()
+        if ( self.hub.num_devices != 4):
+            raise ValueError(f'PLRD1 has 4 subunits. Only {self.hub.num_devices} were detected.')
         else:
             try:
                 logger.debug('Initializing FT4222 A')
                 flag = "DRV A"
-                drvA = DRV81008_FT4222(ft_hub.initSPIDevice('FT4222 A'))
+                drvA = DRV81008_FT4222(self.hub.initSPIDevice('A'))
                 drvA.readRegisters()
                 logger.debug('Initializing FT4222 B')
                 flag = "DRV B"
-                drvB = DRV81008_FT4222(ft_hub.initSPIDevice('FT4222 B'))
+                drvB = DRV81008_FT4222(self.hub.initSPIDevice('B'))
                 drvB.readRegisters()
                 logger.debug('Initializing FT4222 C')
                 flag = "DRV C"
-                drvC = DRV81008_FT4222(ft_hub.initSPIDevice('FT4222 C'))
+                drvC = DRV81008_FT4222(self.hub.initSPIDevice('C'))
                 logger.debug('Initializing FT4222 D')
                 flag = "GPIO"
-                gpio = ft_hub.initGPIODevice('FT4222 D', outputs=[2,3])
+                gpio = self.hub.initGPIODevice('FT4222 D', outputs=[2,3])
                 self.device = {'A':drvA, 'B': drvB, 'C': drvC, 'LED':gpio}
 
             except FT2XXDeviceError as e:

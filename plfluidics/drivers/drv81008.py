@@ -1,4 +1,5 @@
 from ctypes import BigEndianStructure, c_uint16
+import threading
 from .ft4222_hub import FT4222SPIDevice_Single
 '''
 Register | Addr   | Def | Purpose
@@ -134,7 +135,6 @@ class DRV81008():
         self.processResp(resp)
 
     def processResp(self, resp):
-        print(resp)
         if not (resp & self._read_resp):
             self._parseStd(resp)
         elif (resp & self.addr_en):
@@ -225,8 +225,10 @@ class DRV81008_FT4222(DRV81008):
     def __init__(self, ft_spi_device: FT4222SPIDevice_Single):
         super().__init__()
         self.controller = ft_spi_device
+        self.lock = threading.Lock()
 
     def _send(self, data: int):
-        self._temp_out = data
-        self._temp_in = int.from_bytes(self.controller.readWrite(data.to_bytes(2, byteorder='big'), term=True))
-        return self._temp_in
+        with self.lock:
+            self._temp_out = data
+            self._temp_in = int.from_bytes(self.controller.readWrite(data.to_bytes(2, byteorder='big'), term=True))
+            return self._temp_in

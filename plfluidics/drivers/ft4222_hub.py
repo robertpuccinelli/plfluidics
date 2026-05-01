@@ -15,7 +15,7 @@ class FT4222Hub():
     def __del__(self):
         for subunit in self.subunits:
             logger.debug(f'Closing FT4222 device: {subunit}')
-            subunit.device.close()
+            self.subunits[subunit] = []
 
     def detectDevices(self):
         self.device_details = {}
@@ -83,7 +83,6 @@ class FT4222Hub():
     
     def _openDevice(self, device_id):
         device = None
-
         if device_id.encode('utf-8') in [self.device_details[item]['serial'] for item in self.device_details]:
             device = ft4222.openBySerial(device_id)
             logger.debug(f'FT4222 device opened by serial: `{device_id}`')
@@ -92,6 +91,8 @@ class FT4222Hub():
             device = ft4222.openByDescription(device_id)
             logger.debug(f'FT4222 device opened by description: `{device_id}`')
 
+        device.setTimeouts(5000,5000)
+#        device.setLatencyTimer(500)
         return device
     
     def test(self):
@@ -107,11 +108,20 @@ class FT4222SPIDevice_Single():
                  slave_select=SlaveSelect.SS0):
         logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
         self.device = device
-        self.device.spiMaster_Init(clock=clock,
-                                   mode=Mode.SINGLE, 
-                                   cpol=clock_pol, 
-                                   cpha=clock_phase, 
-                                   ssoMap=slave_select)
+        try:
+            self.device.spiMaster_Init(clock=clock,
+                                    mode=Mode.SINGLE, 
+                                    cpol=clock_pol, 
+                                    cpha=clock_phase, 
+                                    ssoMap=slave_select)
+        except Exception as e:
+#            self.device.chipReset()
+            self.__close__()
+            raise e
+        
+    def __close__(self):
+        self.device.close()
+        
 
     def read(self, num_bytes=2, term=True):
         return self.device.spiMaster_SingleRead(bytesToRead=num_bytes, isEndTransaction=term)
