@@ -125,6 +125,9 @@ class DRV81008():
     def cmdWriteAddr(self,addr,data):
         resp = self._send(self._write | addr | data)
         self.processResp(resp)
+        # Cache written value for output enable register
+        if addr == self.addr_en:
+            self.en = data & 0xFF
     
     def cmdReadAddr(self,addr):
         resp = self._send(self._read | addr)
@@ -179,7 +182,7 @@ class DRV81008():
         self.err = data.err
 
     def _parseEn(self, read_data):
-        self.outputs = read_data & 0xFF
+        self.en = read_data & 0xFF
 
     def _parseMap0(self, read_data):
         self.map0 = read_data & 0xFF

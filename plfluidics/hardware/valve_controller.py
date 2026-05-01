@@ -119,10 +119,18 @@ class ValveControllerPLRD1(ValveController):
 
     def __del__(self):
         try:
-            for dev in self.device.values():
-                dev.close()
+            if hasattr(self, 'hub'):
+                self.hub.close()
+            else:
+                for dev in self.device.values():
+                    dev.close()
         except Exception:
             pass
+
+    def close(self):
+        """Explicitly close the hub and clean up device resources."""
+        if hasattr(self, 'hub'):
+            self.hub.close()
 
     def _initValveBanks(self, valve_param_list):
         logger.debug('Initializing PLRD1 valve controller.')
@@ -134,15 +142,16 @@ class ValveControllerPLRD1(ValveController):
             try:
                 logger.debug('Initializing FT4222 A')
                 flag = "DRV A"
-                drvA = DRV81008_FT4222(self.hub.initSPIDevice('A'))
+                drvA = DRV81008_FT4222(self.hub.initSPIDevice('FT4222 A'))
                 drvA.readRegisters()
                 logger.debug('Initializing FT4222 B')
                 flag = "DRV B"
-                drvB = DRV81008_FT4222(self.hub.initSPIDevice('B'))
+                drvB = DRV81008_FT4222(self.hub.initSPIDevice('FT4222 B'))
                 drvB.readRegisters()
                 logger.debug('Initializing FT4222 C')
                 flag = "DRV C"
-                drvC = DRV81008_FT4222(self.hub.initSPIDevice('C'))
+                drvC = DRV81008_FT4222(self.hub.initSPIDevice('FT4222 C'))
+                drvC.readRegisters()
                 logger.debug('Initializing FT4222 D')
                 flag = "GPIO"
                 gpio = self.hub.initGPIODevice('FT4222 D', outputs=[2,3])
