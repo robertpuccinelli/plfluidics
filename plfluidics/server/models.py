@@ -6,7 +6,7 @@ Model:
 - Updates state as dictated
 - Returns to controller
 '''
-from time import time
+from time import time, sleep
 import json
 import logging
 from plfluidics.hardware.valve_controller import ValveControllerRGS, SimulatedValveController, ValveControllerPLRD1
@@ -334,6 +334,7 @@ class ModelScript():
                         next_state = self.stop()
                         self.logger.debug(f'Changing to {next_state} from {self.state}')
             self.state = next_state
+            sleep(0.0001)
         self.flag_thread_engine = False
         self.logger.debug('Script engine terminated.')
 

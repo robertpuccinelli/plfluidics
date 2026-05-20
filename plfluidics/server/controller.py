@@ -328,7 +328,7 @@ class MicrofluidicController():
                 self.script_model.script = self.script_model.processScript(text)
             self.startPauseScriptEngine()
         except Exception as e:
-            self.logger.warning = f'Error starting/pausing script. {e}'
+            self.logger.warning(f'Error starting/pausing script. {e}')
 
     def scriptSkip(self):
         self.logger.info('User request: skip')
