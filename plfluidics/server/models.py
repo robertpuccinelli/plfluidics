@@ -9,7 +9,7 @@ Model:
 from time import time, sleep
 import json
 import logging
-from plfluidics.hardware.valve_controller import ValveControllerRGS, SimulatedValveController, ValveControllerPLRD1
+from plfluidics.hardware.valve_controller import ValveControllerRGS, SimulatedValveController, ValveControllerPLRD1, ValveControllerFT425R
 
 class ModelConfig():
     def __init__(self, options, logger_name=None):
@@ -172,6 +172,8 @@ class ModelHardware():
             self.data['controller'] = SimulatedValveController(valve_list)
         elif config['driver'] == 'plrd1':
             self.data['controller'] = ValveControllerPLRD1(valve_list)
+        elif config['driver'] == 'ft245r_8':
+            self.data['controller'] = ValveControllerFT425R(valve_list)
         elif config['driver'] == 'none':
             self.data['controller'] = []
 

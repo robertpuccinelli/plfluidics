@@ -123,3 +123,15 @@ class ValvePLRD1(Valve):
             cmd = self.device.en | self._bit_mask
         self.device.cmdWriteAddr(self.device.addr_en, cmd)
         logger.debug('Valve set. {} : {}'.format(self.address, cmd))
+
+
+class ValveFT425R(Valve):
+    def __init__(self, USB_device, address, default_state=False, polarity_inverted=False):
+        self.device = USB_device
+        super().__init__(address, default_state, polarity_inverted)
+
+    def _writeState(self, output):
+        if output:
+            self.device.setOutputOn(self.address[0],self.address[1])
+        else:
+            self.device.setOutputOff(self.address[0],self.address[1])

@@ -3,6 +3,7 @@ import ftd2xx
 from ft4222 import FT2XXDeviceError
 from plfluidics.drivers.ft4222_hub import FT4222Hub
 from plfluidics.drivers.drv81008 import DRV81008_FT4222
+from plfluidics.drivers.ft245r import FT245RHub
 from plfluidics.hardware.valve import Valve, ValveRGS, ValvePLRD1
 
 logger = logging.getLogger(__name__)
@@ -173,6 +174,39 @@ class ValveControllerPLRD1(ValveController):
             raise ValueError(f'Address exceeds capacity of the system. Addr: {addr}')
 
 
+class ValveControllerFT425R(ValveController):
+
+    def __init__(self, valve_param_list):
+        super().__init__(valve_param_list)
+
+    def _initValveBanks(self, valve_param_list):
+        logger.debug('Initializing FT425R valve controller.')
+        self.hub = FT245RHub()
+        self.hub.detectDevices()
+        if ( self.hub.num_devices == 0):
+            raise ValueError(f'No FT425R devices were detected.')
+        else:
+            try:
+                for ser in self.hub.serials:
+                    logger.debug('Initializing {ser}')
+                    self.hub.connectDevice(ser)
+            except Exception as e:
+                raise ConnectionError('Failed to connect to FT425R device {ser} : {e}')
+            
+        logger.info('PLRD1 device initialized.')
+            
+    def _valveConstructor(self, addr, pol, state):
+        if addr < 8:
+            return ValvePLRD1(USB_device=self.device['A'], address=addr,default_state=state, polarity_inverted=pol)
+        if addr < 16:
+            return ValvePLRD1(USB_device=self.device['B'], address=addr-8,default_state=state, polarity_inverted=pol)
+        if addr < 24:
+            return ValvePLRD1(USB_device=self.device['C'], address=addr-16,default_state=state, polarity_inverted=pol)
+        else:
+            raise ValueError(f'Address exceeds capacity of the system. Addr: {addr}')
+
+    def _valveConstructor(self, addr, pol, state):
+        return ValveRGS(USB_device=self.device, address=addr,default_state=state, polarity_inverted=pol)
 
 
 class SimulatedValveController(ValveController):
