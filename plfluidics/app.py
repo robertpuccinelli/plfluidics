@@ -3,9 +3,8 @@ Purpose:
 
 Create an application that listens for commands on a specified port. Commands are used to operate a microfluidic controller or provide status information.
 """
-import eventlet
-eventlet.monkey_patch()
-
+#import eventlet
+#eventlet.monkey_patch()
 from flask import Flask
 from flask_socketio import SocketIO
 import logging
@@ -32,8 +31,8 @@ def createApp():
     logger.addHandler(handler_file)
 
     app_server = Flask(__name__)
-    socketio.init_app(app_server, cors_allowed_origins="*", async_mode='eventlet')
-    #socketio.init_app(app_server, cors_allowed_origins="*", async_mode='threading')
+    #socketio.init_app(app_server, cors_allowed_origins="*", async_mode='eventlet')
+    socketio.init_app(app_server, cors_allowed_origins="*", async_mode='threading')
     ctrl = MicrofluidicController(app_server, socketio, log_file_handler=handler_file)
     ctrl.logger.info(f'Log file location: {log_loc}')
 

@@ -19,8 +19,9 @@ setuptools.setup(
         'flask-socketio==5.5.1',
         'ftd2xx==1.3.8',
         'ft4222==1.12.0',
-        'waitress==3.0.2',
-        'eventlet==0.40.2',
+        'pyserial==3.5',
+        #'waitress==3.0.2',
+        #'eventlet==0.40.2',
     ],
     test_suite="tests",
 )
