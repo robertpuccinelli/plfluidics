@@ -9,7 +9,7 @@ import io
 from time import sleep
 from flask import request, render_template
 
-from plfluidics.server.models import ModelHardware, ModelConfig, ModelScript
+from plfluidic.server.models import ModelHardware, ModelConfig, ModelScript
 
 
 class MicrofluidicController():
@@ -66,7 +66,7 @@ class MicrofluidicController():
         self.logger.debug('MicrofluidicController initialized.')
 
     def templatesDir(self):
-        return f'{importlib.resources.files("plfluidics.server.templates").joinpath("config.html").parent}'
+        return f'{importlib.resources.files("plfluidic.server.templates").joinpath("config.html").parent}'
 
     ############
     # LOGGGING #
@@ -146,7 +146,7 @@ class MicrofluidicController():
             self.config_model.preview_text=data
             config = self.config_model.processConfig(self.config_model.preview_text)
             file_name = config['config_name']
-            file_path = importlib.resources.files('plfluidics.server.configs').joinpath(file_name + '.config')
+            file_path = importlib.resources.files('plfluidic.server.configs').joinpath(file_name + '.config')
             with open(file_path, 'w') as f:
                 json.dump(config,f, indent=4)
             self.logger.info(f'Configuration saved: {file_path}')
@@ -193,14 +193,14 @@ class MicrofluidicController():
     ##############
 
     def configRead(self, file_name):
-            file_path = importlib.resources.files('plfluidics.server.configs').joinpath(file_name)
+            file_path = importlib.resources.files('plfluidic.server.configs').joinpath(file_name)
             self.logger.debug(f'Reading configuration: {file_path}')
             with open(file_path, 'r') as f:
                 file_content = f.read()
             return file_content
 
     def scriptRead(self, file_name):
-            file_path = importlib.resources.files('plfluidics.server.scripts').joinpath(file_name)
+            file_path = importlib.resources.files('plfluidic.server.scripts').joinpath(file_name)
             self.logger.debug(f'Reading script: {file_path}')
             with open(file_path, 'r') as f:
                 file_content = f.read()
@@ -209,9 +209,9 @@ class MicrofluidicController():
     def loadFileList(self, dir):
         self.logger.debug(f'Loading file list: {dir}')
         try:
-            file_list = list(importlib.resources.contents('plfluidics.server.' + dir))
+            file_list = list(importlib.resources.contents('plfluidic.server.' + dir))
             if file_list == []:
-                raise ValueError(f"No config files found in: {importlib.resources.files('plfluidics.server.' + dir)}")
+                raise ValueError(f"No config files found in: {importlib.resources.files('plfluidic.server.' + dir)}")
         except Exception as e:
             self.error = e
         return file_list
@@ -307,7 +307,7 @@ class MicrofluidicController():
             data = request.form.get('panel_text').replace('\r\n', '\n')
             self.script_model.preview_text=data  # Preserve user text
             self.script_model.processScript(data)  # Generate error if data not formatted correctly
-            file_path = importlib.resources.files('plfluidics.server.scripts').joinpath(file_name)
+            file_path = importlib.resources.files('plfluidic.server.scripts').joinpath(file_name)
             with open(file_path, 'w') as f:
                 f.write(self.script_model.preview_text)
             self.script_model.selected = file_name

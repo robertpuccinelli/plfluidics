@@ -9,7 +9,7 @@ Model:
 from time import time, sleep
 import json
 import logging
-from plfluidics.hardware.valve_controller import ValveControllerRGS, SimulatedValveController, ValveControllerPLRD1, ValveControllerFT425R
+from plfluidic.hardware.valve_controller import ValveControllerRGS, SimulatedValveController, ValveControllerPLRD1, ValveControllerFT425R
 
 class ModelConfig():
     def __init__(self, options, logger_name=None):

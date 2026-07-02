@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import Mock
-from plfluidics.server.models import ModelConfig
+from plfluidic.server.models import ModelConfig
 
 class TestModelConfig(unittest.TestCase):
     def setUp(self):

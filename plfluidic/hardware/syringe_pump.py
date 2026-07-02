@@ -1,4 +1,4 @@
-from plfluidics.drivers.ne import NEUSB, NEInterface
+from plfluidic.drivers.ne_syringe_pump import NEInterface
 from enum import IntEnum, StrEnum
 from abc import ABC, abstractmethod
 
@@ -227,7 +227,7 @@ class SyringePumpBase(ABC):
 
     ###########
     # METHODS #
-    ###########
+    ###########        
 
     @abstractmethod
     def changeAddr(self, new_addr: str):
@@ -268,6 +268,120 @@ class SyringePumpBase(ABC):
     def _raiseError(self):
         if self.getStatus() == self.Status.err:
             raise RuntimeError(self.error)
+
+
+class SimulatedPump(SyringePumpBase):
+    """Simulated pump class.
+
+    A basic implementation designed to receive commands. Does not simulate state changes.
+    
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    ##############
+    # PROPERTIES #
+    ##############
+
+    @SyringePumpBase.diameter.setter
+    def diameter(self,id_mm: float):
+        self._dia = id_mm
+
+    @SyringePumpBase.direction.setter
+    def direction(self, direction: str):
+        cmd = None
+        if direction in self.Direction:
+            if direction == self.Direction.inj:
+                cmd = True
+            elif direction == self.Direction.wth:
+                cmd = True
+        if cmd:
+                self._dir = direction
+
+    @SyringePumpBase.mode.setter
+    def mode(self, mod: str):
+        if mod in self.Mode:
+            _mod = self.mode
+            self._mode = mod
+
+            # Change current volume to 0 if not in flow mode
+            if (self._mode == self.Mode.flw) & (_mod != self.Mode.flw):
+                self.vol = 0
+
+            # Restore volume from a hidden volume register
+            elif self._mode == self.Mode.vol:
+                self.vol = self._reg_vol
+            
+            self._mode = _mod
+
+    @SyringePumpBase.rate.setter
+    def rate(self, value: float):
+        self._rate = value
+
+    @SyringePumpBase.units_rate.setter
+    def units_rate(self, unit: str):
+        cmd = None
+        if unit == self.Unit.ml:
+            cmd = True
+        elif unit == self.Unit.ul:
+            cmd = True
+        
+        if cmd:
+            self._rate_units = unit
+
+    @SyringePumpBase.units_vol.setter
+    def units_vol(self, unit: str):
+        cmd = None
+        if unit in self.Unit:
+            if unit == self.Unit.mh:
+                cmd = True
+            elif unit == self.Unit.uh:
+                cmd = True
+            elif unit == self.Unit.mm:
+                cmd = True
+            elif unit == self.Unit.um:
+                cmd = True
+        
+        if cmd:
+            self._vol_units = unit
+
+    def vol(self, vol:float):
+        """Set volume to be injected/withdrawn. 
+        Flow mode defaults to setting the hardware volume to 0 while storing the requested volume.
+        """
+        # Store current volume to hidden register and load new volume
+        self._reg_vol = self.vol
+
+        # If in flow mode, restore previous volume setting
+        if self.mode == self.Mode.flw:
+            self._vol = 0
+        else:
+            self._vol = vol
+
+    ###########
+    # METHODS #
+    ###########
+
+    def changeAddr(self, new_addr: str):
+        val = f"{new_addr}".encode('utf-8')
+        self._addr = val
+        return self.getStatus()
+
+    def getVolCount(self) -> list:
+        return [0, 1]
+
+    def resetVolCount(self):
+        return self.getStatus()
+    
+    def start(self):
+        return self.getStatus()
+    
+    def stop(self):
+        return self.getStatus()
+
+    def purge(self):
+        return self.getStatus()
 
 
 class NEPump(SyringePumpBase):

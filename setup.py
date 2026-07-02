@@ -1,13 +1,13 @@
 import setuptools
 
 setuptools.setup(
-    name="plfluidics",
+    name="plfluidic",
     version="0.1.0",
     author="Robert R. Puccinelli",
     author_email="robert.puccinelli@outlook.com",
     description="Microfluidic control utilities.",
     url="https://github.com/robertpuccinelli/microfluidic-software.git",
-    python_requires='>=3.10',
+    python_requires='>=3.13',
     packages=setuptools.find_packages(exclude=["*.tests", "*.tests.*",
                                                "tests.*", "tests"]),
     package_data={'plfluidics':['server/configs/*', 

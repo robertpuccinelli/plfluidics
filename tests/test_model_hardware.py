@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch
-from plfluidics.server.models import ModelValves
-from plfluidics.valves.valve_controller import ValveControllerRGS
+from plfluidic.server.models import ModelValves
+from plfluidic.hardware.valve_controller import ValveControllerRGS
 
 class TestModelValves(unittest.TestCase):
 

@@ -1,4 +1,4 @@
-'''Classes for controlling microfluidic valves'''
+'''Classes for controlling microfluidic solenoid valves'''
 import logging
 
 logger = logging.getLogger(__name__)

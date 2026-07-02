@@ -10,7 +10,7 @@ from flask_socketio import SocketIO
 import logging
 from logging.handlers import TimedRotatingFileHandler
 import os
-from plfluidics.server.controller import MicrofluidicController
+from plfluidic.server.controller import MicrofluidicController
 
 
 socketio = SocketIO()
@@ -19,7 +19,7 @@ def createApp():
     cdir = os.getcwd()
     ndir = os.path.join(cdir, "logs")
     os.makedirs(ndir, exist_ok=True)
-    filename = "plfluidics"
+    filename = "plfluidic"
 
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)

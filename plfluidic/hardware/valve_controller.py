@@ -1,10 +1,10 @@
 import logging
 import ftd2xx
 from ft4222 import FT2XXDeviceError
-from plfluidics.drivers.ft4222_hub import FT4222Hub
-from plfluidics.drivers.drv81008 import DRV81008_FT4222
-from plfluidics.drivers.ft245r import FT245RHub
-from plfluidics.hardware.valve import Valve, ValveRGS, ValvePLRD1
+from plfluidic.drivers.ft4222_hub import FT4222Hub
+from plfluidic.drivers.drv81008 import DRV81008_FT4222
+from plfluidic.drivers.ft245r import FT245RHub
+from plfluidic.hardware.valve import Valve, ValveRGS, ValvePLRD1
 
 logger = logging.getLogger(__name__)
 

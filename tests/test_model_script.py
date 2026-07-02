@@ -1,6 +1,6 @@
 import unittest
 import queue
-from plfluidics.server.models import ModelScript
+from plfluidic.server.models import ModelScript
 
 class TestModelScript(unittest.TestCase):
     def setUp(self):
