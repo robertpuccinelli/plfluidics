@@ -70,12 +70,12 @@ class SyringePumpBase(ABC):
 
 
     class Unit(StrEnum):
-        ml  = "mL"
-        ul  = "uL"
-        mh  = "mLh"
-        uh  = "uLh"
-        mm  = "mLm"
-        um  = "uLm"
+        ml  = "ml"
+        ul  = "ul"
+        mh  = "mlh"
+        uh  = "ulh"
+        mm  = "mlm"
+        um  = "ulm"
         unk = "?"
 
 

@@ -281,6 +281,31 @@ class MicrofluidicController():
         else:
             raise ValueError(f'Valve not present in model: {valve}')
 
+    ##########################
+    # SYRINGE PUMP UTILITIES #
+    ##########################
+
+    def startPump(self, pump):
+        self.pump_model.setPumpStart(pump)
+
+    def stopPump(self, pump):
+        self.pump_model.setPumpStart(pump)
+
+    def purgePump(self, pump):
+        self.pump_model.setPumpPurge(pump)
+
+    def dirPump(self, pump, dir):
+        self.pump_model.setPumpDir(pump, dir)
+
+    def modePump(self, pump, mode):
+        self.pump_model.setPumpMode(pump, mode)
+
+    def ratePump(self, pump, rate, units):
+        self.pump_model.setPumpRate(pump, rate, units)
+
+    def volPump(self, pump, vol, units):
+        self.pump_model.setPumpVol(pump, vol, units)
+
     ##########
     # SCRIPT #
     ##########
@@ -394,7 +419,6 @@ class MicrofluidicController():
             self.thread_script_processor.join()
             self.logger.debug('Controller script interface terminated.')
 
-
     def poll(self):
         self.userQ.put('poll')
 
@@ -423,6 +447,20 @@ class MicrofluidicController():
                 elif msg[0] == 'close':
                     self.closeValve(msg[1])
                     self.socketio.emit('valve',{'name':msg[1], 'state':'c'})
+                elif msg[0] == 'start':
+                    self.startPump(msg[1])
+                elif msg[0] == 'stop':
+                    self.stopPump(msg[1])
+                elif msg[0] == 'purge':
+                    self.purgePump(msg[1])
+                elif msg[0] == 'dir':
+                    self.dirPump(msg[1], msg[2])
+                elif msg[0] == 'mode':
+                    self.modePump(msg[1], msg[2])
+                elif msg[0] == 'rate':
+                    self.ratePump(msg[1], msg[2], msg[3])
+                elif msg[0] == 'vol':
+                    self.volPump(msg[1], msg[2], msg[3])
                 elif msg[0] == 'pause':
                     self.socketio.emit('pause')
                 elif msg[0] == 't_e':

@@ -68,6 +68,23 @@ class ModelConfig():
                     raise KeyError(msg)
                 valve_data.append(temp_valve)
             data['valves'] = valve_data
+
+            if 'pumps' in data.keys():
+                pumps = data['pumps']
+                pump_fields = self.options['pump_fields'].copy()
+                pump_fields.remove('pump_alias')
+                pump_data = []
+
+                for pump in pumps:
+                    try:
+                        temp_pump = {'pump_alias': pump}
+                        temp_pump = temp_pump | {key:pumps[pump][key] for key in pump_fields}
+                    except Exception as e:
+                        msg = f'Field missing from pump configuration: {e}'
+                        raise KeyError(msg)
+                    pump_data = temp_pump
+                data['pumps'] = pump_data
+
         except Exception as e:
             if not msg:
                 msg = f'Error transforming config to model format. {e}'
@@ -109,13 +126,17 @@ class ModelHardware():
             self.logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
         self.logger.setLevel(logging.DEBUG)
         config_fields = ['config_name','author','date', 'device','driver','valves']
-        driver_options = ['rgs', 'plrd1', 'simulation','none']
+        valve_driver_options = ['rgs', 'plrd1', 'ft245r_8', 'simulation','none']
         valve_fields = ['valve_alias','solenoid_number', 'default_state_closed','inv_polarity']
         valve_commands = ['open', 'close']
+        pump_fields = ['pump_alias', 'interface', 'address', 'diameter', 'direction', 'mode', 'rate', 'rate_units', 'vol', 'vol_units']
+        pump_commands = ['start', 'stop', 'purge', 'dir', 'mode', 'rate', 'vol']
         self.options = {'config_fields': config_fields, 
-                        'driver_options': driver_options, 
+                        'driver_options': valve_driver_options, 
                         'valve_fields': valve_fields, 
-                        'valve_commands': valve_commands}
+                        'valve_commands': valve_commands,
+                        'pump_fields': pump_fields,
+                        'pump_commands': pump_commands}
         
         self.reset()
         self.logger.debug('ModelHardware initialized.')
@@ -177,7 +198,7 @@ class ModelHardware():
         elif config['driver'] == 'none':
             self.data['controller'] = []
 
-        self.data['server']['valve_states']= valve_def_position
+        self.data['server']['valve_states'] = valve_def_position
         self.logger.info(f'Valve controller driver set: {config["driver"]}')         
     
     def openValve(self, valve):
@@ -192,6 +213,45 @@ class ModelHardware():
         self.data['server']['valve_states'][valve] = 'closed'
         self.logger.info(f'Valve closed: {valve}')
 
+    def startPump(self, pump):
+        self.logger.debug(f'Starting pump: {pump}')
+        self.data['controller_pumps'].setPumpStart(pump)
+        self.logger.info(f'Pump started: {pump}')
+
+    def stopPump(self, pump):
+        self.logger.debug(f'Stopping pump: {pump}')
+        self.data['controller_pumps'].setPumpStop(pump)
+        self.logger.info(f'Pump stopped: {pump}')
+
+    def purgePump(self, pump):
+        self.logger.debug(f'Purging pump: {pump}')
+        self.data['controller_pumps'].setPumpPurge(pump)
+        self.logger.info(f'Pump purging: {pump}')
+
+    def dirPump(self, pump, dir):
+        self.logger.debug(f'Setting pump direction: {pump} - {dir}')
+        self.data['controller_pumps'].setPumpDir(pump, dir)
+        self.logger.info(f'Pump direction set: {pump} - {dir}')
+
+    def modePump(self, pump, mode):
+        self.logger.debug(f'Setting pump mode: {pump} - {mode}')
+        self.data['controller_pumps'].setPumpMode(pump, mode)
+        self.logger.info(f'Pump mode set: {pump} - {mode}')
+
+    def ratePump(self, pump, quantity, units):
+        self.logger.debug(f'Setting pump rate: {pump} - {quantity} {units}')
+        self.data['controller_pumps'].setPumpRate(pump, quantity, units)
+        self.logger.info(f'Pump rate set: {pump} - {quantity} {units}')
+
+    def volPump(self, pump, quantity, units):
+        self.logger.debug(f'Setting pump volume: {pump} - {quantity} {units}')
+        self.data['controller_pumps'].setPumpVol(pump, quantity, units)
+        self.logger.info(f'Pump volume set: {pump} - {quantity} {units}')
+
+    def modePump(self, pump, mode):
+        self.logger.debug(f'Setting pump mode: {pump} - {mode}')
+        self.data['controller_pumps'].setPumpMode(pump, mode)
+        self.logger.info(f'Pump mode set: {pump} - {mode}')
 
 class ModelScript():
             
@@ -201,9 +261,12 @@ class ModelScript():
         else:
             self.logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
         self.logger.setLevel(logging.DEBUG)
-        self.operations = ['open','close', 'wait', 'pump','pause']
+        self.operations = ['open','close', 'wait','pause', 'start', 'stop', 'purge', 'dir', 'mode', 'rate', 'vol']
+        self.dir_values = ['inject', 'withdraw']
+        self.mode_values = ['rate', 'vol']
         self.wait_units = ['ms','s', 'm', 'h']
-        self.pump_units = ['hz']
+        self.rate_units = ['mlh', 'ulh', 'mlm', 'ulm']
+        self.vol_units = ['ml', 'ul']
         self.file_list = []
         self.flag_thread_engine = False
         self.flag_pause = False
@@ -369,20 +432,28 @@ class ModelScript():
     def execute(self):
         cmd = self.script[0]
         self.logger.info(f'Line: {self.line_count} {cmd}')
-        if cmd[0] == 'open':
-            self.scriptQ.put(['open', cmd[1]])
-        elif cmd[0] == 'close':
-            self.scriptQ.put(['close', cmd[1]])
+        if cmd[0] in ['open', 'close', 'start','stop','purge']:
+            self.scriptQ.put([cmd[0], cmd[1]])
+
+        elif cmd[0] in ['dir', 'mode']:
+            self.scriptQ.put([cmd[0], cmd[1], cmd[2]])
+
+        elif cmd[0] in ['rate', 'vol']:
+            self.scriptQ.put([cmd[0], cmd[1], cmd[2], cmd[3]])
+
+        elif cmd[0] == 'start':
+            self.scriptQ.put()
+        
         elif cmd[0] == 'wait':
             self.time_step_duration = cmd[1]
             self.time_step_next = time() + self.time_step_duration
             self.scriptQ.put(['t_n',self.time_step_duration])
+
         elif cmd[0] == 'pause':
             # Create a delay so that script does not advance
             # this gives controller time to interrupt script engine
             self.flag_pause = True
             self.scriptQ.put(['pause'])
-
 
     def stop(self):
         self.logger.info('Stopping script execution.')
@@ -420,13 +491,56 @@ class ModelScript():
                         if op[0] not in self.operations:  # Identify operation
                             raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]}` not in recognized list: {self.operations}.')
 
-                        if (op[0] == 'open') or (op[0] == 'close'):
+                        if op[0] in ['open','close']:
                             if len(op) < 2:  # Identify missing argument
                                 raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]} requires a valve.')
                             valve = op[1]
                             if valve not in self.valve_list:  # Identify typos
                                 raise SyntaxError(f'Script formatting error. Line {line_number} : Valve `{valve}` in operation `{op}` not recognized.')
                             new_line = [op[0],valve]
+
+                        if op[0] in ['start','stop','purge']:
+                            if len(op) < 2:  # Identify missing argument
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]} requires a pump.')
+                            pump = op[1]
+                            if pump not in self.pump_list:  # Identify typos
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Pump `{pump}` in operation `{op}` not recognized.')
+                            new_line = [op[0],pump]
+
+
+                        if op[0] in  ['dir', 'mode']:
+                            if len(op) < 3:  # Identify missing argument
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]} requires a pump and value.')
+                            pump = op[1]
+                            if pump not in self.pump_list:  # Identify typos
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Pump `{pump}` in operation `{op}` not recognized.')
+                            if op[2] not in (self.dir_values and self.mode_values):
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Argument `{op[2]}` in operation `{op}` not recognized.')
+                            new_line = [op[0],pump, op[2]]
+
+                            if op[0] in  ['rate']:
+                                if len(op) < 4:  # Identify missing argument
+                                    raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]} requires a pump, value, and unit.')
+                                pump = op[1]
+                                if pump not in self.pump_list:  # Identify typos
+                                    raise SyntaxError(f'Script formatting error. Line {line_number} : Pump `{pump}` in operation `{op}` not recognized.')
+                                if not op[2].isdigit():  # Check if wait duration is an integer
+                                    raise SyntaxError(f'Script formatting error. Line {line_number} : Quantity argument is not an integer - {op[2]}')
+                                if op[3] not in (self.rate_units):
+                                    raise SyntaxError(f'Script formatting error. Line {line_number} : Units `{op[3]}` in operation `{op}` not recognized.')
+                                new_line = [op[0],pump, op[2], op[3]]
+
+                            if op[0] in  ['vol']:
+                                if len(op) < 4:  # Identify missing argument
+                                    raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]} requires a pump, value, and unit.')
+                                pump = op[1]
+                                if pump not in self.pump_list:  # Identify typos
+                                    raise SyntaxError(f'Script formatting error. Line {line_number} : Pump `{pump}` in operation `{op}` not recognized.')
+                                if not op[2].isdigit():  # Check if wait duration is an integer
+                                    raise SyntaxError(f'Script formatting error. Line {line_number} : Quantity argument is not an integer - {op[2]}')
+                                if op[3] not in (self.vol_units):
+                                    raise SyntaxError(f'Script formatting error. Line {line_number} : Units `{op[3]}` in operation `{op}` not recognized.')
+                                new_line = [op[0],pump, op[2], op[3]]
 
                         if op[0] =='wait':
                             if len(op) < 3:  # Identify missing argument
@@ -446,15 +560,6 @@ class ModelScript():
                                 step_time = int(op[1])
                             approx_time += step_time
                             new_line = [op[0], step_time]
-
-                        if op[0] == 'pump':
-                            if len(op) < 3:  # Identify missing argument
-                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `pump` requires a frequency value and unit.')
-                            if not op[1].isdigit():  # Check if frequency value is an integer
-                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `pump` frequency value is not an integer - {op[1]}')
-                            if op[2] not in self.pump_units:  # check if frequency unit is recognized
-                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `pump` unit must be one of the following - {self.pump_units}')
-                            new_line = [op[0], op[1]]
 
                         if op[0] == 'pause':
                             new_line = [op[0]]
