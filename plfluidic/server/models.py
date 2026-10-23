@@ -10,6 +10,7 @@ from time import time, sleep
 import json
 import logging
 from plfluidic.hardware.valve_controller import ValveControllerRGS, SimulatedValveController, ValveControllerPLRD1, ValveControllerFT425R
+from plfluidic.hardware.syringe_controller import SyringeControllerNE, SyringeControllerSimulation, PumpConfig
 
 class ModelConfig():
     def __init__(self, options, logger_name=None):
@@ -40,8 +41,12 @@ class ModelConfig():
             msg = f'Extra keys found in config: {config_set.difference(config_fields)}'
             self.logger.debug(msg)
             raise KeyError(msg)
-        if formatted_data['driver'] not in self.options['driver_options']:
-            msg = f'Driver not in recognized list: {self.options["driver_options"]}'
+        if formatted_data['valve_driver'] not in self.options['valve_driver_options']:
+            msg = f'Valve driver not in recognized list: {self.options["valve_driver_options"]}'
+            self.logger.debug(msg)
+            raise ValueError(msg)
+        if formatted_data['pump_driver'] not in self.options['pump_driver_options']:
+            msg = f'Pump driver not in recognized list: {self.options["pump_driver_options"]}'
             self.logger.debug(msg)
             raise ValueError(msg)
         new_config={}
@@ -59,6 +64,7 @@ class ModelConfig():
             valve_fields = self.options['valve_fields'].copy()
             valve_fields.remove('valve_alias')
             valve_data = []
+
             for valve in valves:
                 try:
                     temp_valve = {'valve_alias': valve}
@@ -69,21 +75,20 @@ class ModelConfig():
                 valve_data.append(temp_valve)
             data['valves'] = valve_data
 
-            if 'pumps' in data.keys():
-                pumps = data['pumps']
-                pump_fields = self.options['pump_fields'].copy()
-                pump_fields.remove('pump_alias')
-                pump_data = []
+            pumps = data['pumps']
+            pump_fields = self.options['pump_fields'].copy()
+            pump_fields.remove('pump_alias')
+            pump_data = []
 
-                for pump in pumps:
-                    try:
-                        temp_pump = {'pump_alias': pump}
-                        temp_pump = temp_pump | {key:pumps[pump][key] for key in pump_fields}
-                    except Exception as e:
-                        msg = f'Field missing from pump configuration: {e}'
-                        raise KeyError(msg)
-                    pump_data = temp_pump
-                data['pumps'] = pump_data
+            for pump in pumps:
+                try:
+                    temp_pump = {'pump_alias': pump}
+                    temp_pump = temp_pump | {key:pumps[pump][key] for key in pump_fields}
+                except Exception as e:
+                    msg = f'Field missing from pump configuration: {e}'
+                    raise KeyError(msg)
+                pump_data.append(temp_pump)
+            data['pumps'] = pump_data
 
         except Exception as e:
             if not msg:
@@ -103,6 +108,8 @@ class ModelConfig():
             value = data[key]
             if isinstance(value, int):
                 new_dict[key.lower()] = value 
+            elif isinstance(value, float):
+                new_dict[key.lower()] = value
             elif isinstance(value, str):
                 new_dict[key.lower()] = value.lower()
             elif isinstance(value, bool):
@@ -110,7 +117,7 @@ class ModelConfig():
             elif isinstance(value, dict):
                 new_dict[key.lower()] = self.lowercaseDict(value)
             else:
-                msg = f'Config not formatted properly. Key: {key}'
+                msg = f'Config not formatted properly. Key: {key}, Value: {value}'
                 self.logger.debug(msg)
                 raise ValueError(msg)
         self.logger.debug('Dict data converted to lowercase.')
@@ -119,25 +126,28 @@ class ModelConfig():
 
 class ModelHardware():
 
+    config_fields = ['config_name','author','date', 'device','valve_driver','valves', 'pump_driver','pumps']
+    valve_driver_options = ['rgs', 'plrd1', 'ft245r_8', 'simulation','none']
+    valve_fields = ['valve_alias','solenoid_number', 'default_state_closed','inv_polarity']
+    valve_commands = ['open', 'close']
+    pump_driver_options = ['ne', 'simulation', 'none']
+    pump_fields = ['pump_alias', 'interface', 'address', 'diameter', 'direction', 'mode', 'rate', 'rate_units', 'vol', 'vol_units']
+    pump_commands = ['start', 'stop', 'purge', 'dir', 'mode', 'rate', 'vol']
+    
+    options = {'config_fields': config_fields, 
+                    'valve_driver_options': valve_driver_options, 
+                    'valve_fields': valve_fields, 
+                    'valve_commands': valve_commands,
+                    'pump_driver_options': pump_driver_options,
+                    'pump_fields': pump_fields,
+                    'pump_commands': pump_commands}
+
     def __init__(self, logger_name=None):
         if logger_name:
             self.logger = logging.getLogger(logger_name)
         else:
             self.logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
-        self.logger.setLevel(logging.DEBUG)
-        config_fields = ['config_name','author','date', 'device','driver','valves']
-        valve_driver_options = ['rgs', 'plrd1', 'ft245r_8', 'simulation','none']
-        valve_fields = ['valve_alias','solenoid_number', 'default_state_closed','inv_polarity']
-        valve_commands = ['open', 'close']
-        pump_fields = ['pump_alias', 'interface', 'address', 'diameter', 'direction', 'mode', 'rate', 'rate_units', 'vol', 'vol_units']
-        pump_commands = ['start', 'stop', 'purge', 'dir', 'mode', 'rate', 'vol']
-        self.options = {'config_fields': config_fields, 
-                        'driver_options': valve_driver_options, 
-                        'valve_fields': valve_fields, 
-                        'valve_commands': valve_commands,
-                        'pump_fields': pump_fields,
-                        'pump_commands': pump_commands}
-        
+        self.logger.setLevel(logging.DEBUG)        
         self.reset()
         self.logger.debug('ModelHardware initialized.')
 
@@ -145,14 +155,17 @@ class ModelHardware():
         self.logger.debug('Resetting ModelHardware to default values.')
         server_status = {'status': 'no_config', 
                          'valve_states':{}}
-        config_status = {'config_name':'none',
-                         'driver':'none',
-                         'device':'none',
-                         'valves':[]}
-        self.data = {'server': server_status, 'config': config_status, 'controller':[]}
+        config_status = {'config_name': 'none',
+                         'device': 'none',
+                         'valve_driver': 'none',
+                         'valves':[],
+                         'pump_driver': 'none',
+                         'pumps': []}
+        self.data = {'server': server_status, 'config': config_status, 'valve_controller':[], 'pump_controller':[]}
 
-    def optionsGet(self):
-        return self.options
+    @classmethod
+    def optionsGet(cls):
+        return cls.options
 
     def statusGet(self):
         return self.data['server']
@@ -173,6 +186,8 @@ class ModelHardware():
     def driverSet(self):
         self.logger.debug('Setting driver for valve controller.')
         config = self.configGet()
+
+        # Process valves
         valves = config['valves']
         valve_list = []
         valve_def_position = {}
@@ -186,76 +201,111 @@ class ModelHardware():
                 valve_def_position[v_name] = 'open'
             else:
                 valve_def_position[v_name] = 'closed'
+
+        valve_driver = config['valve_driver']
     
-        if config['driver'] == 'rgs':
-            self.data['controller'] = ValveControllerRGS(valve_list)
-        elif config['driver'] == 'simulation':
-            self.data['controller'] = SimulatedValveController(valve_list)
-        elif config['driver'] == 'plrd1':
-            self.data['controller'] = ValveControllerPLRD1(valve_list)
-        elif config['driver'] == 'ft245r_8':
-            self.data['controller'] = ValveControllerFT425R(valve_list)
-        elif config['driver'] == 'none':
-            self.data['controller'] = []
+        if valve_driver == 'rgs':
+            self.data['valve_controller'] = ValveControllerRGS(valve_list)
+        elif valve_driver == 'simulation':
+            self.data['valve_controller'] = SimulatedValveController(valve_list)
+        elif valve_driver == 'plrd1':
+            self.data['valve_controller'] = ValveControllerPLRD1(valve_list)
+        elif valve_driver == 'ft245r_8':
+            self.data['valve_controller'] = ValveControllerFT425R(valve_list)
+        elif valve_driver == 'none':
+            self.data['valve_controller'] = []
 
         self.data['server']['valve_states'] = valve_def_position
-        self.logger.info(f'Valve controller driver set: {config["driver"]}')         
+        self.logger.info(f'Valve controller driver set: {config["valve_driver"]}') 
+
+        # Process syringe pumps
+        pumps = config['pumps']
+        pump_list = []
+        for pump in pumps:
+            pconfig = PumpConfig()
+            pconfig['alias'] = pump['pump_alias']
+            pconfig['interface'] = pump['interface']
+            pconfig['address'] = pump['address']
+            pconfig['diameter'] = pump['diameter']
+            pconfig['direction'] = pump['direction'] 
+            pconfig['mode'] = pump['mode']
+            pconfig['rate'] = pump['rate']
+            pconfig['rate_units'] = pump['rate_units']
+            pconfig['vol'] = pump['vol']
+            pconfig['vol_units'] = pump['vol_units']
+
+            pump_list.append(pconfig)
+
+        pump_driver = config['pump_driver']
+
+        if pump_driver == 'ne':
+            self.data['pump_controller'] = SyringeControllerNE(pump_list)
+            self.data['pump_controller'].createPumps()
+
+        elif pump_driver == 'simulation':
+            self.data['pump_controller'] = SyringeControllerSimulation(pump_list)
+            self.data['pump_controller'].createPumps()
+    
+        elif pump_driver == 'none':
+            self.data['pump_controller'] = []
+
+        self.logger.info(f'Pump controller driver set: {config["pump_driver"]}')
     
     def openValve(self, valve):
         self.logger.debug(f'Opening valve: {valve}')
-        self.data['controller'].setValveOpen(valve)
+        self.data['valve_controller'].setValveOpen(valve)
         self.data['server']['valve_states'][valve] = 'open'
         self.logger.info(f'Valve opened: {valve}')
 
     def closeValve(self, valve):
         self.logger.debug(f'Closing valve: {valve}')
-        self.data['controller'].setValveClose(valve)
+        self.data['valve_controller'].setValveClose(valve)
         self.data['server']['valve_states'][valve] = 'closed'
         self.logger.info(f'Valve closed: {valve}')
 
     def startPump(self, pump):
         self.logger.debug(f'Starting pump: {pump}')
-        self.data['controller_pumps'].setPumpStart(pump)
+        self.data['pump_controller'].setPumpStart(pump)
         self.logger.info(f'Pump started: {pump}')
 
     def stopPump(self, pump):
         self.logger.debug(f'Stopping pump: {pump}')
-        self.data['controller_pumps'].setPumpStop(pump)
+        self.data['pump_controller'].setPumpStop(pump)
         self.logger.info(f'Pump stopped: {pump}')
 
     def purgePump(self, pump):
         self.logger.debug(f'Purging pump: {pump}')
-        self.data['controller_pumps'].setPumpPurge(pump)
+        self.data['pump_controller'].setPumpPurge(pump)
         self.logger.info(f'Pump purging: {pump}')
 
     def dirPump(self, pump, dir):
         self.logger.debug(f'Setting pump direction: {pump} - {dir}')
-        self.data['controller_pumps'].setPumpDir(pump, dir)
+        self.data['pump_controller'].setPumpDir(pump, dir)
         self.logger.info(f'Pump direction set: {pump} - {dir}')
 
     def modePump(self, pump, mode):
         self.logger.debug(f'Setting pump mode: {pump} - {mode}')
-        self.data['controller_pumps'].setPumpMode(pump, mode)
+        self.data['pump_controller'].setPumpMode(pump, mode)
         self.logger.info(f'Pump mode set: {pump} - {mode}')
 
     def ratePump(self, pump, quantity, units):
         self.logger.debug(f'Setting pump rate: {pump} - {quantity} {units}')
-        self.data['controller_pumps'].setPumpRate(pump, quantity, units)
+        self.data['pump_controller'].setPumpRate(pump, quantity, units)
         self.logger.info(f'Pump rate set: {pump} - {quantity} {units}')
 
     def volPump(self, pump, quantity, units):
         self.logger.debug(f'Setting pump volume: {pump} - {quantity} {units}')
-        self.data['controller_pumps'].setPumpVol(pump, quantity, units)
+        self.data['pump_controller'].setPumpVol(pump, quantity, units)
         self.logger.info(f'Pump volume set: {pump} - {quantity} {units}')
 
     def modePump(self, pump, mode):
         self.logger.debug(f'Setting pump mode: {pump} - {mode}')
-        self.data['controller_pumps'].setPumpMode(pump, mode)
+        self.data['pump_controller'].setPumpMode(pump, mode)
         self.logger.info(f'Pump mode set: {pump} - {mode}')
 
 class ModelScript():
             
-    def __init__(self, user_queue, script_queue, valve_list, logger_name=None):
+    def __init__(self, user_queue, script_queue, valve_list=None, pump_list=None, logger_name=None):
         if logger_name:
             self.logger = logging.getLogger(logger_name)
         else:
@@ -279,6 +329,7 @@ class ModelScript():
         self.userQ = user_queue
         self.scriptQ = script_queue
         self.valve_list = valve_list
+        self.pump_list = pump_list
         self.logger.debug('ModelScript initialized.')
 
     def engine(self):

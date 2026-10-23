@@ -1,6 +1,6 @@
 import logging
 from plfluidic.drivers.ne_syringe_pump import NEUSB
-from plfluidic.hardware.syringe_pump import NEPump
+from plfluidic.hardware.syringe_pump import NEPump, SimulatedPump
 from abc import ABC, abstractmethod
 
 from typing import TypedDict
@@ -22,25 +22,32 @@ class PumpConfig(TypedDict):
 
 
 class SyringeControllerBase(ABC):
-    def __init__(self, driver_params):
+    def __init__(self, pump_list):
+        self._pump_config_list = pump_list
         self.pumps = {}
         self.pump_aliases = []
         self.driver = None
-        self.driver = self._loadDriver(driver_params)
+        self._loadDriver()
 
-    def createPumps(self, pump_config_list):
-        for pump in pump_config_list:
+    def createPumps(self, pump_config_list=None):
+
+        if pump_config_list == None:
+            pump_config_list = self._pump_config_list
+
+        for pump_config in pump_config_list:
             try:
-                self.pumps[pump.alias] = self._initializePump(pump)
-            except:
+                self.pumps[pump_config['alias']] = self._initializePump(pump_config)
+                print(self.pumps[pump_config['alias']])
+            except Exception as e:
                 self.pumps = {}
+                print(f"create - {e}")
             
     @abstractmethod
-    def _loadDriver(self, *args, **kwargs):
+    def _loadDriver(self):
         pass
 
     @abstractmethod
-    def _initializePump(self, pump: PumpConfig):
+    def _initializePump(self, pump_config: PumpConfig):
         pass
 
     def setPumpStart(self, pump_alias):
@@ -70,30 +77,54 @@ class SyringeControllerBase(ABC):
 class SyringeControllerNE(SyringeControllerBase):
 
     def __init__(self, *args, **kwargs):
-        super.__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
-    def _loadDriver(self, port):
+    def _loadDriver(self):
+        port = self._pump_config_list[0]['interface']
         try:
             driver = NEUSB(port)
             driver.open()
 
-        except:
+        except Exception as e:
             driver = None
+            print(f"driver - {e}")
 
-        return driver
+        self.driver = driver
 
-    def _initializePump(self, pump: PumpConfig):
+    def _initializePump(self, pump_config: PumpConfig):
         try:
             pump = NEPump(interface=self.driver,
-                          address= pump.address,
-                          diameter= pump.diameter, 
-                          direction=pump.direction, 
-                          mode=pump.mode, 
-                          rate = pump.rate, 
-                          rate_units = pump.rate_units, 
-                          volume=pump.vol, 
-                          volume_units=pump.vol_units)
+                          address= pump_config['address'],
+                          diameter= pump_config['diameter'], 
+                          direction=pump_config['direction'], 
+                          mode=pump_config['mode'], 
+                          rate = pump_config['rate'], 
+                          rate_units = pump_config['rate_units'], 
+                          volume=pump_config['vol'], 
+                          volume_units=pump_config['vol_units'])
+        except Exception as e:
+            pump = None
+            print(f"init - {e}")
+
+        return pump
+
+class SyringeControllerSimulation(SyringeControllerBase):
+
+    def _initializePump(self, pump_config: PumpConfig):
+        try:
+            pump = SimulatedPump(interface=self.driver,
+                          address= pump_config['address'],
+                          diameter= pump_config['diameter'], 
+                          direction=pump_config['direction'], 
+                          mode=pump_config['mode'], 
+                          rate = pump_config['rate'], 
+                          rate_units = pump_config['rate_units'], 
+                          volume=pump_config['vol'], 
+                          volume_units=pump_config['vol_units'])
         except:
             pump = None
 
         return pump
+
+    def _loadDriver(self):
+        pass

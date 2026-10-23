@@ -55,12 +55,12 @@ class MicrofluidicController():
         self.flag_thread_processor = False
 
         self.error = None
-        self.valve_model = None
+        self.hardware_model = None
         self.config_model = None
         self.script_model = None
 
-        self.valve_model = ModelHardware(logger_name='controller.valves')
-        self.config_model = ModelConfig(options=self.valve_model.optionsGet(), logger_name='controller.config')
+        self.hardware_model = ModelHardware(logger_name='controller.valves')
+        self.config_model = ModelConfig(options=self.hardware_model.optionsGet(), logger_name='controller.config')
         self.script_model = ModelScript(self.userQ, self.scriptQ, valve_list=None, logger_name='controller.script')
 
         self.logger.debug('MicrofluidicController initialized.')
@@ -86,7 +86,7 @@ class MicrofluidicController():
     ################
 
     def renderPage(self):
-        if self.valve_model.data['server']['status'] == 'no_config':
+        if self.hardware_model.data['server']['status'] == 'no_config':
             self.logger.debug('Rendering configuration page.')
             self.config_model.file_list = self.loadFileList('configs')
             return self.configPage()
@@ -110,8 +110,8 @@ class MicrofluidicController():
             self.thread_logger.daemon = True
             self.thread_logger.start()      
             self.flag_thread_logger = True
-        page_name = self.valve_model.data['config']['device'] + '.html'
-        valves = self.valve_model.data['server']['valve_states']
+        page_name = self.hardware_model.data['config']['device'] + '.html'
+        valves = self.hardware_model.data['server']['valve_states']
         self.logger.debug(f'Control page: {page_name}')
         return render_template(page_name, 
                                valves = valves,
@@ -168,12 +168,12 @@ class MicrofluidicController():
                 self.logger.info(f'Loading configuration from file: {self.config_model.file_name}')
             config = self.config_model.processConfig(data)
             linear_config = self.config_model.configLinearize(config)
-            self.valve_model.configSet(linear_config)
-            self.valve_model.driverSet()
-            self.script_model.valve_list = list(self.valve_model.data['server']['valve_states'].keys())
+            self.hardware_model.configSet(linear_config)
+            self.hardware_model.driverSet()
+            self.script_model.valve_list = list(self.hardware_model.data['server']['valve_states'].keys())
             self.logger.info('Configuration loaded successfully.')
         except Exception as e:
-            self.valve_model.data['server']['status'] = 'no_config'
+            self.hardware_model.data['server']['status'] = 'no_config'
             self.error = f'Error loading config. {e}'
         return self.renderPage()
 
@@ -184,7 +184,7 @@ class MicrofluidicController():
 
     def configReload(self):
         self.logger.info('Reloading configuration.')
-        self.valve_model.reset()
+        self.hardware_model.reset()
         self.configLoad()
         return self.renderPage()
 
@@ -228,7 +228,7 @@ class MicrofluidicController():
         try:
             valve = data.get('valve')
             if self.checkValveExists(valve):
-                curr_state = self.valve_model.data['server']['valve_states'][valve]
+                curr_state = self.hardware_model.data['server']['valve_states'][valve]
             if curr_state == 'open':
                 self.closeValve(valve)
             elif curr_state == 'closed':
@@ -263,20 +263,20 @@ class MicrofluidicController():
     ###################
 
     def openValve(self, valve):
-        if self.valve_model.data['server']['valve_states'][valve] == 'closed':
-            self.valve_model.openValve(valve)
-            if self.valve_model.data['server']['valve_states'][valve] == 'open':
+        if self.hardware_model.data['server']['valve_states'][valve] == 'closed':
+            self.hardware_model.openValve(valve)
+            if self.hardware_model.data['server']['valve_states'][valve] == 'open':
                 self.socketio.emit('valve',{'action':'open','valve':valve})
 
     def closeValve(self, valve):
-        if self.valve_model.data['server']['valve_states'][valve] == 'open':
-            self.valve_model.closeValve(valve)
-            if self.valve_model.data['server']['valve_states'][valve] == 'closed':
+        if self.hardware_model.data['server']['valve_states'][valve] == 'open':
+            self.hardware_model.closeValve(valve)
+            if self.hardware_model.data['server']['valve_states'][valve] == 'closed':
                 self.socketio.emit('valve',{'action':'close','valve':valve})
 
     def checkValveExists(self, valve):
         self.logger.debug(f'Checking existence of valve: {valve}')
-        if valve in self.valve_model.data['server']['valve_states']:
+        if valve in self.hardware_model.data['server']['valve_states']:
             return True
         else:
             raise ValueError(f'Valve not present in model: {valve}')
