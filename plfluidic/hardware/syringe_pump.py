@@ -65,25 +65,27 @@ class SyringePumpBase(ABC):
     """
 
     class Mode(StrEnum):
-        flw = "FLOW"
-        vol = "VOL"
+        flw = "flow"
+        vol = "vol"
 
 
-    class Unit(StrEnum):
+    class Unit_Vol(StrEnum):
         ml  = "ml"
         ul  = "ul"
+
+
+    class Unit_Rate(StrEnum):
         mh  = "mlh"
         uh  = "ulh"
         mm  = "mlm"
         um  = "ulm"
-        unk = "?"
 
 
     class Direction(StrEnum):
-        inj = "INJ"
-        wth = "WTH"
-        rev = "REV"
-        stk = "STK"
+        inj = "inj"
+        wth = "wth"
+        rev = "rev"
+        stk = "stk"
 
 
     class State(StrEnum):
@@ -109,6 +111,7 @@ class SyringePumpBase(ABC):
         ign = "PHA_IGN" # Command ignored due to phase start
         vol = "SET_VOL" # Set a volume >0 for volume mode
 
+
     class Alarm(StrEnum):
         reset = "PWR_RST" # Power reset detected
         stall = "STALL"   # Motor stall detected
@@ -119,26 +122,29 @@ class SyringePumpBase(ABC):
 
     def __init__(self, interface, address: str, diameter: float, 
                  direction=Direction.inj, mode=Mode.flw, rate = 1, 
-                 rate_units = Unit.uh, volume=0, volume_units=Unit.ul):
+                 rate_units = Unit_Rate.uh, volume=0, volume_units=Unit_Vol.ul):
         self._alarm = False
         self._error = False
         self._reg_vol = 0
+        self._vol = 0
         self._mode = None
+        self._rate = 1
         self._addr = address.encode('utf-8')
         self.device = interface
+        self.mode = mode
         self.diameter = diameter
         self._raiseError()
         self.direction = direction
         self._raiseError()
-        self.mode = mode
+        self.units_rate = rate_units
         self._raiseError()
         self.rate = rate
         self._raiseError()
-        self.rate_units = rate_units
+        self.units_vol = volume_units
         self._raiseError()
         self.vol = volume
         self._raiseError()
-        self.vol_units = volume_units
+        self.mode = mode
         self._raiseError()
 
 
@@ -319,33 +325,37 @@ class SimulatedPump(SyringePumpBase):
     def rate(self, value: float):
         self._rate = value
 
-    @SyringePumpBase.units_rate.setter
-    def units_rate(self, unit: str):
+    @SyringePumpBase.units_vol.setter
+    def units_vol(self, unit: str):
+        unit = unit.lower()
         cmd = None
-        if unit == self.Unit.ml:
-            cmd = True
-        elif unit == self.Unit.ul:
-            cmd = True
+        if unit in self.Unit_Vol:
+            if unit == self.Unit_Vol.ml:
+                cmd = True
+            elif unit == self.Unit_Vol.ul:
+                cmd = True
         
         if cmd:
             self._rate_units = unit
 
-    @SyringePumpBase.units_vol.setter
-    def units_vol(self, unit: str):
+    @SyringePumpBase.units_rate.setter
+    def units_rate(self, unit: str):
+        unit = unit.lower()
         cmd = None
-        if unit in self.Unit:
-            if unit == self.Unit.mh:
+        if unit in self.Unit_Rate:
+            if unit == self.Unit_Rate.mh:
                 cmd = True
-            elif unit == self.Unit.uh:
+            elif unit == self.Unit_Rate.uh:
                 cmd = True
-            elif unit == self.Unit.mm:
+            elif unit == self.Unit_Rate.mm:
                 cmd = True
-            elif unit == self.Unit.um:
+            elif unit == self.Unit_Rate.um:
                 cmd = True
         
         if cmd:
             self._vol_units = unit
 
+    @SyringePumpBase.vol.setter
     def vol(self, vol:float):
         """Set volume to be injected/withdrawn. 
         Flow mode defaults to setting the hardware volume to 0 while storing the requested volume.
@@ -421,8 +431,8 @@ class NEPump(SyringePumpBase):
                 cmd = self._addr + NEInterface.Commands.dir +  NEInterface.Directions.rev + NEInterface.Commands.ter
             elif direction == self.Direction.stk:
                 cmd = self._addr + NEInterface.Commands.dir +  NEInterface.Directions.stk + NEInterface.Commands.ter
-            else:
-                self._error = self.Error.unk
+        else:
+            self._error = self.Error.unk
 
         if cmd:
             self._send(cmd)
@@ -440,7 +450,7 @@ class NEPump(SyringePumpBase):
                 self.vol = 0
 
             # Restore volume from a hidden volume register
-            elif self._mode == self.Mode.vol:
+            elif (self._mode == self.Mode.vol) & (_mod != self.Mode.vol):
                 self.vol = self._reg_vol
             
             if self.getStatus() != self.Status.ok:
@@ -453,13 +463,14 @@ class NEPump(SyringePumpBase):
         if (self.getStatus() == self.Status.ok) & ((self.state != self.State.inj) | (self.state != self.State.wth)):
             self._rate = value
 
-    @SyringePumpBase.units_rate.setter
-    def units_rate(self, unit: str):
+    @SyringePumpBase.units_vol.setter
+    def units_vol(self, unit: str):
         cmd = None
-        if unit == self.Unit.ml:
-            cmd = self._addr + NEInterface.Commands.vol + NEInterface.Units.ml + NEInterface.Commands.ter
-        elif unit == self.Unit.ul:
-            cmd = self._addr + NEInterface.Commands.vol + NEInterface.Units.ul + NEInterface.Commands.ter
+        if unit in self.Unit_Vol:
+            if unit == self.Unit_Vol.ml:
+                cmd = self._addr + NEInterface.Commands.vol + NEInterface.Units.ml + NEInterface.Commands.ter
+            elif unit == self.Unit_Vol.ul:
+                cmd = self._addr + NEInterface.Commands.vol + NEInterface.Units.ul + NEInterface.Commands.ter
         else:
             self._error = self.Error.unk
         
@@ -468,18 +479,18 @@ class NEPump(SyringePumpBase):
             if self.getStatus() == self.Status.ok:
                 self._rate_units = unit
 
-    @SyringePumpBase.units_vol.setter
-    def units_vol(self, unit: str):
+    @SyringePumpBase.units_rate.setter
+    def units_rate(self, unit: str):
         cmd = None
-        if unit in self.Unit:
-            if unit == self.Unit.mh:
-                cmd = self._addr + NEInterface.Commands.vol + NEInterface.Units.mh + NEInterface.Commands.ter
-            elif unit == self.Unit.uh:
-                cmd = self._addr + NEInterface.Commands.vol + NEInterface.Units.uh + NEInterface.Commands.ter
-            elif unit == self.Unit.mm:
-                cmd = self._addr + NEInterface.Commands.vol + NEInterface.Units.mm + NEInterface.Commands.ter
-            elif unit == self.Unit.um:
-                cmd = self._addr + NEInterface.Commands.vol + NEInterface.Units.mh + NEInterface.Commands.ter
+        if unit in self.Unit_Rate:
+            if unit == self.Unit_Rate.mh:
+                cmd = self._addr + NEInterface.Commands.rat + f"{self.rate}".encode('utf-8') + NEInterface.Units.mh + NEInterface.Commands.ter
+            elif unit == self.Unit_Rate.uh:
+                cmd = self._addr + NEInterface.Commands.rat + str(self.rate).encode("utf-8") + NEInterface.Units.uh + NEInterface.Commands.ter
+            elif unit == self.Unit_Rate.mm:
+                cmd = self._addr + NEInterface.Commands.rat + str(self.rate).encode("utf-8") + NEInterface.Units.mm + NEInterface.Commands.ter
+            elif unit == self.Unit_Rate.um:
+                cmd = self._addr + NEInterface.Commands.rat + str(self.rate).encode("utf-8") + NEInterface.Units.mh + NEInterface.Commands.ter
         else:
             self._error = self.Error.unk
         
@@ -488,23 +499,29 @@ class NEPump(SyringePumpBase):
             if self.getStatus() == self.Status.ok:
                 self._vol_units = unit
 
+    @SyringePumpBase.vol.setter
     def vol(self, vol:float):
         """Set volume to be injected/withdrawn. 
         Flow mode defaults to setting the hardware volume to 0 while storing the requested volume.
         """
-        # Store current volume to hidden register and load new volume
-        self._reg_vol = self.vol
-        cmd = self._addr + NEInterface.Commands.vol + f"{vol}".encode('utf-8') + NEInterface.Commands.ter
-        self._send(cmd)
-        if self.getStatus() == self.Status.ok:
+        # If in flow mode, set machine volume to 0 
+        if self.mode == self.Mode.flw:
+            # If vol arg is non-zero store it
+            if vol != 0:
+                self._reg_vol = vol
+            # Otherwise, store current vol if non-zero
+            elif self.vol != 0:
+                self._reg_vol = self.vol
+            cmd = self._addr + NEInterface.Commands.vol + f"0".encode('utf-8') + NEInterface.Commands.ter
+            self._send(cmd)
+            if self.getStatus() == self.Status.ok:
+                self._vol = 0
 
-            # If in flow mode, restore previous volume setting
-            if self.mode == self.Mode.flw:
-                cmd = self._addr + NEInterface.Commands.vol + f"0".encode('utf-8') + NEInterface.Commands.ter
-                self._send(cmd)
-                if self.getStatus() == self.Status.ok:
-                    self._vol = 0
-            else:
+        # If not in flow mode, set machine volume to vol arg
+        elif self.mode == self.Mode.vol:
+            cmd = self._addr + NEInterface.Commands.vol + f"{vol}".encode('utf-8') + NEInterface.Commands.ter
+            self._send(cmd)
+            if self.getStatus() == self.Status.ok:
                 self._vol = vol
 
     ###########
@@ -527,9 +544,9 @@ class NEPump(SyringePumpBase):
         return [inj, wth]
 
     def resetVolCount(self):
-        cmd = self._addr + NEInterface.Commands.cld + NEInterface.Directions.inf + NEInterface.Commands.ter
+        cmd = self._addr + NEInterface.Commands.cld + NEInterface.Directions.rev + NEInterface.Commands.ter
         self._send(cmd)
-        cmd = self._addr + NEInterface.Commands.cld + NEInterface.Directions.wth + NEInterface.Commands.ter
+        cmd = self._addr + NEInterface.Commands.cld + NEInterface.Directions.rev + NEInterface.Commands.ter
         self._send(cmd)
         return self.getStatus()
     

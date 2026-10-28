@@ -1,7 +1,7 @@
 '''Controller in model-view-controller framework for microfluidic hardware control application.
 '''
 import json
-import importlib.resources
+import os
 import queue
 import threading
 import logging
@@ -61,12 +61,9 @@ class MicrofluidicController():
 
         self.hardware_model = ModelHardware(logger_name='controller.valves')
         self.config_model = ModelConfig(options=self.hardware_model.optionsGet(), logger_name='controller.config')
-        self.script_model = ModelScript(self.userQ, self.scriptQ, valve_list=None, logger_name='controller.script')
+        self.script_model = ModelScript(self.userQ, self.scriptQ, valve_list=None, pump_list=None, logger_name='controller.script')
 
         self.logger.debug('MicrofluidicController initialized.')
-
-    def templatesDir(self):
-        return f'{importlib.resources.files("plfluidic.server.templates").joinpath("config.html").parent}'
 
     ############
     # LOGGGING #
@@ -146,7 +143,7 @@ class MicrofluidicController():
             self.config_model.preview_text=data
             config = self.config_model.processConfig(self.config_model.preview_text)
             file_name = config['config_name']
-            file_path = importlib.resources.files('plfluidic.server.configs').joinpath(file_name + '.config')
+            file_path = os.path.join(os.getcwd(), "plfluidic_user", "configs", file_name + ".config")
             with open(file_path, 'w') as f:
                 json.dump(config,f, indent=4)
             self.logger.info(f'Configuration saved: {file_path}')
@@ -170,7 +167,8 @@ class MicrofluidicController():
             linear_config = self.config_model.configLinearize(config)
             self.hardware_model.configSet(linear_config)
             self.hardware_model.driverSet()
-            self.script_model.valve_list = list(self.hardware_model.data['server']['valve_states'].keys())
+            self.script_model.valve_list =list(self.hardware_model.data['valve_controller'].valve_dict.keys())
+            self.script_model.pump_list = self.hardware_model.data['pump_controller'].pump_aliases
             self.logger.info('Configuration loaded successfully.')
         except Exception as e:
             self.hardware_model.data['server']['status'] = 'no_config'
@@ -193,14 +191,14 @@ class MicrofluidicController():
     ##############
 
     def configRead(self, file_name):
-            file_path = importlib.resources.files('plfluidic.server.configs').joinpath(file_name)
+            file_path = os.path.join(os.getcwd(), "plfluidic_user", "configs", file_name)
             self.logger.debug(f'Reading configuration: {file_path}')
             with open(file_path, 'r') as f:
                 file_content = f.read()
             return file_content
 
     def scriptRead(self, file_name):
-            file_path = importlib.resources.files('plfluidic.server.scripts').joinpath(file_name)
+            file_path = os.path.join(os.getcwd(), "plfluidic_user", "scripts", file_name)
             self.logger.debug(f'Reading script: {file_path}')
             with open(file_path, 'r') as f:
                 file_content = f.read()
@@ -208,16 +206,15 @@ class MicrofluidicController():
 
     def loadFileList(self, dir):
         self.logger.debug(f'Loading file list: {dir}')
+        target_dir = os.path.join(os.getcwd(), "plfluidic_user", dir)
         try:
-            file_list = list(importlib.resources.contents('plfluidic.server.' + dir))
+            file_list = [f for f in os.listdir(target_dir) if os.path.isfile(os.path.join(target_dir, f))]
             if file_list == []:
-                raise ValueError(f"No config files found in: {importlib.resources.files('plfluidic.server.' + dir)}")
+                raise ValueError(f"No config files found in: {target_dir}")
         except Exception as e:
             self.error = e
         return file_list
     
-    
-
     #########
     # VALVE #
     #########
@@ -286,25 +283,25 @@ class MicrofluidicController():
     ##########################
 
     def startPump(self, pump):
-        self.pump_model.setPumpStart(pump)
+        self.hardware_model.startPump(pump)
 
     def stopPump(self, pump):
-        self.pump_model.setPumpStart(pump)
+        self.hardware_model.stopPump(pump)
 
     def purgePump(self, pump):
-        self.pump_model.setPumpPurge(pump)
+        self.hardware_model.purgePump(pump)
 
     def dirPump(self, pump, dir):
-        self.pump_model.setPumpDir(pump, dir)
+        self.hardware_model.dirPump(pump, dir)
 
     def modePump(self, pump, mode):
-        self.pump_model.setPumpMode(pump, mode)
+        self.hardware_model.modePump(pump, mode)
 
     def ratePump(self, pump, rate, units):
-        self.pump_model.setPumpRate(pump, rate, units)
+        self.hardware_model.ratePump(pump, rate, units)
 
     def volPump(self, pump, vol, units):
-        self.pump_model.setPumpVol(pump, vol, units)
+        self.hardware_model.volPump(pump, vol, units)
 
     ##########
     # SCRIPT #
@@ -332,7 +329,7 @@ class MicrofluidicController():
             data = request.form.get('panel_text').replace('\r\n', '\n')
             self.script_model.preview_text=data  # Preserve user text
             self.script_model.processScript(data)  # Generate error if data not formatted correctly
-            file_path = importlib.resources.files('plfluidic.server.scripts').joinpath(file_name)
+            file_path = os.path.join(os.getcwd(),"plfluidic_user","scripts", file_name)
             with open(file_path, 'w') as f:
                 f.write(self.script_model.preview_text)
             self.script_model.selected = file_name

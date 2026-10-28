@@ -9,8 +9,10 @@ Model:
 from time import time, sleep
 import json
 import logging
+from enum import StrEnum
 from plfluidic.hardware.valve_controller import ValveControllerRGS, SimulatedValveController, ValveControllerPLRD1, ValveControllerFT425R
 from plfluidic.hardware.syringe_controller import SyringeControllerNE, SyringeControllerSimulation, PumpConfig
+from plfluidic.hardware.syringe_pump import SyringePumpBase
 
 class ModelConfig():
     def __init__(self, options, logger_name=None):
@@ -304,6 +306,28 @@ class ModelHardware():
         self.logger.info(f'Pump mode set: {pump} - {mode}')
 
 class ModelScript():
+
+    class ScriptOperation(StrEnum):
+        """A class that presents all operations supported in scripts. Suffix _v for valves and _s for syringes."""
+        wait = "wait"
+        pause = "pause"
+        open_v = "open"
+        close_v = "close"
+        start_s = "start"
+        stop_s = "stop"
+        purge_s = "purge"
+        dir_s = "dir"
+        mode_s = "mode"
+        rate_s = "rate"
+        vol_s = "vol"
+
+    class Unit_Wait(StrEnum):
+        """A class that presents all supported wait duration units."""
+        millisecond = "ms"
+        second = "s"
+        minute = "m"
+        hour = "h"
+
             
     def __init__(self, user_queue, script_queue, valve_list=None, pump_list=None, logger_name=None):
         if logger_name:
@@ -311,12 +335,11 @@ class ModelScript():
         else:
             self.logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
         self.logger.setLevel(logging.DEBUG)
-        self.operations = ['open','close', 'wait','pause', 'start', 'stop', 'purge', 'dir', 'mode', 'rate', 'vol']
-        self.dir_values = ['inject', 'withdraw']
-        self.mode_values = ['rate', 'vol']
-        self.wait_units = ['ms','s', 'm', 'h']
-        self.rate_units = ['mlh', 'ulh', 'mlm', 'ulm']
-        self.vol_units = ['ml', 'ul']
+        self.operations = [key.value for key in self.ScriptOperation]
+        self.mode_values = [key.value for key in SyringePumpBase.Mode]
+        self.rate_units = [key.value for key in SyringePumpBase.Unit_Rate]
+        self.vol_units = [key.value for key in SyringePumpBase.Unit_Vol]
+        self.wait_units = [key.value for key in self.Unit_Wait]
         self.file_list = []
         self.flag_thread_engine = False
         self.flag_pause = False
@@ -483,24 +506,21 @@ class ModelScript():
     def execute(self):
         cmd = self.script[0]
         self.logger.info(f'Line: {self.line_count} {cmd}')
-        if cmd[0] in ['open', 'close', 'start','stop','purge']:
+        if cmd[0] in [self.ScriptOperation.open_v, self.ScriptOperation.close_v, self.ScriptOperation.start_s, self.ScriptOperation.stop_s, self.ScriptOperation.purge_s]:
             self.scriptQ.put([cmd[0], cmd[1]])
 
-        elif cmd[0] in ['dir', 'mode']:
+        elif cmd[0] in [self.ScriptOperation.dir_s, self.ScriptOperation.mode_s]:
             self.scriptQ.put([cmd[0], cmd[1], cmd[2]])
 
-        elif cmd[0] in ['rate', 'vol']:
+        elif cmd[0] in [self.ScriptOperation.rate_s, self.ScriptOperation.vol_s]:
             self.scriptQ.put([cmd[0], cmd[1], cmd[2], cmd[3]])
-
-        elif cmd[0] == 'start':
-            self.scriptQ.put()
         
-        elif cmd[0] == 'wait':
+        elif cmd[0] in [self.ScriptOperation.wait]:
             self.time_step_duration = cmd[1]
             self.time_step_next = time() + self.time_step_duration
             self.scriptQ.put(['t_n',self.time_step_duration])
 
-        elif cmd[0] == 'pause':
+        elif cmd[0] in [self.ScriptOperation.pause]:
             # Create a delay so that script does not advance
             # this gives controller time to interrupt script engine
             self.flag_pause = True
@@ -542,7 +562,7 @@ class ModelScript():
                         if op[0] not in self.operations:  # Identify operation
                             raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]}` not in recognized list: {self.operations}.')
 
-                        if op[0] in ['open','close']:
+                        if op[0] in [self.ScriptOperation.open_v, self.ScriptOperation.close_v]:
                             if len(op) < 2:  # Identify missing argument
                                 raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]} requires a valve.')
                             valve = op[1]
@@ -550,7 +570,7 @@ class ModelScript():
                                 raise SyntaxError(f'Script formatting error. Line {line_number} : Valve `{valve}` in operation `{op}` not recognized.')
                             new_line = [op[0],valve]
 
-                        if op[0] in ['start','stop','purge']:
+                        if op[0] in [self.ScriptOperation.start_s,self.ScriptOperation.stop_s,self.ScriptOperation.purge_s]:
                             if len(op) < 2:  # Identify missing argument
                                 raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]} requires a pump.')
                             pump = op[1]
@@ -558,42 +578,45 @@ class ModelScript():
                                 raise SyntaxError(f'Script formatting error. Line {line_number} : Pump `{pump}` in operation `{op}` not recognized.')
                             new_line = [op[0],pump]
 
-
-                        if op[0] in  ['dir', 'mode']:
+                        if op[0] in  [self.ScriptOperation.dir_s, self.ScriptOperation.mode_s]:
                             if len(op) < 3:  # Identify missing argument
                                 raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]} requires a pump and value.')
                             pump = op[1]
                             if pump not in self.pump_list:  # Identify typos
                                 raise SyntaxError(f'Script formatting error. Line {line_number} : Pump `{pump}` in operation `{op}` not recognized.')
-                            if op[2] not in (self.dir_values and self.mode_values):
+                            if (op[2] not in SyringePumpBase.Direction) and (op[2] not in SyringePumpBase.Mode):
                                 raise SyntaxError(f'Script formatting error. Line {line_number} : Argument `{op[2]}` in operation `{op}` not recognized.')
                             new_line = [op[0],pump, op[2]]
 
-                            if op[0] in  ['rate']:
-                                if len(op) < 4:  # Identify missing argument
-                                    raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]} requires a pump, value, and unit.')
-                                pump = op[1]
-                                if pump not in self.pump_list:  # Identify typos
-                                    raise SyntaxError(f'Script formatting error. Line {line_number} : Pump `{pump}` in operation `{op}` not recognized.')
-                                if not op[2].isdigit():  # Check if wait duration is an integer
-                                    raise SyntaxError(f'Script formatting error. Line {line_number} : Quantity argument is not an integer - {op[2]}')
-                                if op[3] not in (self.rate_units):
-                                    raise SyntaxError(f'Script formatting error. Line {line_number} : Units `{op[3]}` in operation `{op}` not recognized.')
-                                new_line = [op[0],pump, op[2], op[3]]
+                        if op[0] in  [self.ScriptOperation.rate_s]:
+                            if len(op) < 4:  # Identify missing argument
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]} requires a pump, value, and unit.')
+                            pump = op[1]
+                            if pump not in self.pump_list:  # Identify typos
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Pump `{pump}` in operation `{op}` not recognized.')
+                            try:  # Check if rate is numeric
+                                float(op[2])
+                            except:
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Quantity argument is not numeric - {op[2]}')
+                            if op[3] not in (self.rate_units):
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Units `{op[3]}` in operation `{op}` not recognized.')
+                            new_line = [op[0],pump, op[2], op[3]]
 
-                            if op[0] in  ['vol']:
-                                if len(op) < 4:  # Identify missing argument
-                                    raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]} requires a pump, value, and unit.')
-                                pump = op[1]
-                                if pump not in self.pump_list:  # Identify typos
-                                    raise SyntaxError(f'Script formatting error. Line {line_number} : Pump `{pump}` in operation `{op}` not recognized.')
-                                if not op[2].isdigit():  # Check if wait duration is an integer
-                                    raise SyntaxError(f'Script formatting error. Line {line_number} : Quantity argument is not an integer - {op[2]}')
-                                if op[3] not in (self.vol_units):
-                                    raise SyntaxError(f'Script formatting error. Line {line_number} : Units `{op[3]}` in operation `{op}` not recognized.')
-                                new_line = [op[0],pump, op[2], op[3]]
+                        if op[0] in [self.ScriptOperation.vol_s]:
+                            if len(op) < 4:  # Identify missing argument
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `{op[0]} requires a pump, value, and unit.')
+                            pump = op[1]
+                            if pump not in self.pump_list:  # Identify typos
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Pump `{pump}` in operation `{op}` not recognized.')
+                            try:  # Check if volume is numeric
+                                float(op[2])
+                            except:
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Quantity argument is not numeric - {op[2]}')
+                            if op[3] not in (self.vol_units):
+                                raise SyntaxError(f'Script formatting error. Line {line_number} : Units `{op[3]}` in operation `{op}` not recognized.')
+                            new_line = [op[0],pump, op[2], op[3]]
 
-                        if op[0] =='wait':
+                        if op[0] in [self.ScriptOperation.wait]:
                             if len(op) < 3:  # Identify missing argument
                                 raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `wait` requires a duration and unit of time.')
                             if not op[1].isdigit():  # Check if wait duration is an integer
@@ -601,18 +624,18 @@ class ModelScript():
                             if op[2] not in self.wait_units:  # Check if wait unit is recognized
                                 raise SyntaxError(f'Script formatting error. Line {line_number} : Operation `wait` duration unit must be one of the following - {self.wait_units}')                    
                             step_time = 0
-                            if op[2] == 'm':
+                            if op[2] == self.Unit_Wait.minute:
                                 step_time = 60 * int(op[1])
-                            elif op[2] == 'h':
+                            elif op[2] == self.Unit_Wait.hour:
                                 step_time = 3600 * int(op[1])
-                            elif op[2] == 'ms':
+                            elif op[2] == self.Unit_Wait.millisecond:
                                 step_time = 0.001 * int(op[1])
-                            else:
+                            elif op[2] == self.Unit_Wait.second:
                                 step_time = int(op[1])
                             approx_time += step_time
                             new_line = [op[0], step_time]
 
-                        if op[0] == 'pause':
+                        if op[0] in [self.ScriptOperation.pause]:
                             new_line = [op[0]]
 
                 if new_line:

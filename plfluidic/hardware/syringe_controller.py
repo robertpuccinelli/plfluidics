@@ -37,10 +37,10 @@ class SyringeControllerBase(ABC):
         for pump_config in pump_config_list:
             try:
                 self.pumps[pump_config['alias']] = self._initializePump(pump_config)
-                print(self.pumps[pump_config['alias']])
+                self.pump_aliases.append(pump_config['alias'])
             except Exception as e:
                 self.pumps = {}
-                print(f"create - {e}")
+                raise 
             
     @abstractmethod
     def _loadDriver(self):
@@ -87,7 +87,7 @@ class SyringeControllerNE(SyringeControllerBase):
 
         except Exception as e:
             driver = None
-            print(f"driver - {e}")
+            raise ConnectionError(f"Syringe pump driver could not be opened at {port}")
 
         self.driver = driver
 
@@ -104,7 +104,7 @@ class SyringeControllerNE(SyringeControllerBase):
                           volume_units=pump_config['vol_units'])
         except Exception as e:
             pump = None
-            print(f"init - {e}")
+            raise ValueError(f'Failed to initialize pump. {e}')
 
         return pump
 

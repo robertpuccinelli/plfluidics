@@ -1,0 +1,12 @@
+rate buffer 1 mlm
+vol buffer 0.1 ml
+mode buffer vol
+dir buffer inj
+start buffer # Inject 0.1 mL
+wait 10 s
+stop buffer
+mode buffer flow
+dir buffer wth
+start buffer # Withdraw 10 s
+wait 10 s
+stop buffer
